@@ -1,0 +1,64 @@
+-*- outline -*-
+
+* Python System Manager(tm)
+
+Essentially, a collection of independent Python processes.
+
+** Notable ideas (in random order)
+
+- (restartable, upgradeable) core Python process per device
+
+- encrypted communications between devices
+
+- a number of subsidiary Python processes per device
+
+- that can share the communication channel(/state) with the core process
+
+** Current application goals
+
+- my home automation system
+
+why? each 'computer', CPE, Raspberry PI runs a particular subset of the
+Python things, and maintaining the software to be up to date and working on
+each is hard work by hand. hopefully this makes it easier
+
+** Design
+
+- implement DNCP core in Python
+
+- write a DNCP profile which uses TCP for unicast, and UDP for multicast
+  state sharing (+ simple PSK-based encrypted block abstraction _for both_)
+
+- provide simple interface for 'client' applications to access pysyma
+  state, and publish their own
+
+- have '(sub)node per blob of software' to distribute Python stuff
+
+** TBD
+
+- is DNCP TLV-style encoding desirable, or should we use e.g. JSON/CBOR?
+CBOR brings in extra dependency; json is inefficient and bad for
+transporting binaries; DNCP basic TLV encoding has too small length for our
+purposes.. lose-lose? :p perhaps 1 byte type + 3 byte length would be a
+good compromise.
+
+** 'Leafy' nodes
+
+*** may choose only to read state (once)
+
+- send request network state to known address, wait for reply + request
+  node datas that are applicable
+
+*** may choose only to publish state (continually)
+
+- 'once' is not really an option; continually you can simply not answer to
+  node data requests from anyone, and mirror someone else's network state
+  (modulo your own data); requires keeping track of ~hash + last seen _per
+  node_, which isn't too bad
+
+*** may choose to publish state (for a while)
+
+- publish state with TTL to first-hop non-leafy node, which then publishes
+  it as their own _without_ TTL. if TTL expires, the data disappears. if
+  TTL gets refreshed, the data stays around
+
