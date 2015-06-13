@@ -9,14 +9,17 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 13:25:03 2015 mstenber
-# Last modified: Fri Jun 12 13:34:57 2015 mstenber
-# Edit time:     1 min
+# Last modified: Sat Jun 13 12:49:16 2015 mstenber
+# Edit time:     10 min
 #
 """
 
 """
 
 import pysyma.dncp
+from pysyma.dncp_tlv import *
+import operator
+import functools
 
 # TBD: Implement something net_sim-ish here
 class DummySystem:
@@ -27,3 +30,25 @@ class DummySystem:
 
 def test_hncp():
     h = pysyma.dncp.HNCP(DummySystem())
+
+def test_tlv():
+    test_material = [ReqNetState(),
+                     PadBodyTLV(t=64),
+                     PadBodyTLV(t=65, body=b'x'),
+                     PadBodyTLV(t=66, body=b'xx'),
+                     PadBodyTLV(t=67, body=b'xxx'),
+                     PadBodyTLV(t=68, body=b'xxxx'),
+                     ReqNodeState(node_id=b'foob'),
+                     NodeEP(node_id=b'foob', ep_id=123),
+                     NetState(hash=b'12345678'),
+                     NodeState(node_id=b'foob', seqno=123, age=234,
+                               hash=b'12345678'),
+                     NodeState(node_id=b'foob', seqno=123, age=234,
+                               hash=b'12345678', body=b'x'),
+                     Neighbor(n_node_id=b'barb', n_ep_id=42, ep_id=7)]
+    for t in test_material:
+        tl = list(decode_tlvs(t.encode()))
+        assert len(tl) == 1
+        assert tl[0] == t
+    tl = list(decode_tlvs(functools.reduce(operator.add, [x.encode() for x in test_material])))
+    assert tl == test_material
