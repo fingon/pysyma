@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sat Jun 13 12:05:01 2015 mstenber
-# Last modified: Sat Jun 13 12:46:11 2015 mstenber
-# Edit time:     27 min
+# Last modified: Sat Jun 13 13:24:52 2015 mstenber
+# Edit time:     28 min
 #
 """
 
@@ -21,6 +21,8 @@ yet, find one to reuse.
 """
 
 import struct
+import operator
+import functools
 
 RID_LEN = 8
 MTU_ISH = 1400 # random MTU we use for splitting TLVs when we send stuff
@@ -158,3 +160,7 @@ def decode_tlvs(x):
         tlv = _tlvs.get(t, PadBodyTLV).decode(x, i)
         yield tlv
         i += tlv.wire_size()
+
+def encode_tlvs(*l):
+    # TBD: Is there some cross-Python-version 'more efficient' syntax?
+    return functools.reduce(operator.add, [x.encode() for x in l])

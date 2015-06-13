@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 13:25:03 2015 mstenber
-# Last modified: Sat Jun 13 12:49:16 2015 mstenber
-# Edit time:     10 min
+# Last modified: Sat Jun 13 13:43:00 2015 mstenber
+# Edit time:     13 min
 #
 """
 
@@ -18,12 +18,12 @@
 
 import pysyma.dncp
 from pysyma.dncp_tlv import *
-import operator
-import functools
 
 # TBD: Implement something net_sim-ish here
 class DummySystem:
     def schedule(self, dt, cb, *a):
+        pass
+    def send(self, ep, src, dst, tl):
         pass
     def time(self):
         return 0
@@ -50,5 +50,5 @@ def test_tlv():
         tl = list(decode_tlvs(t.encode()))
         assert len(tl) == 1
         assert tl[0] == t
-    tl = list(decode_tlvs(functools.reduce(operator.add, [x.encode() for x in test_material])))
+    tl = list(decode_tlvs(encode_tlvs(*test_material)))
     assert tl == test_material
