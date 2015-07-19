@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sun Jul 19 09:14:49 2015 mstenber
-# Last modified: Sun Jul 19 15:17:54 2015 mstenber
-# Edit time:     88 min
+# Last modified: Sun Jul 19 15:21:42 2015 mstenber
+# Edit time:     90 min
 #
 """
 
@@ -23,6 +23,7 @@ LOOP_SELF=True # do we want to sanity check
 LOOP_SELF=False
 
 import pysyma.dncp
+from pysyma.dncp_tlv import *
 
 import heapq
 import collections
@@ -169,6 +170,16 @@ def test_hncp():
 
     s.run_until(s.is_converged, time_ceiling=1) # should converge in subsecond
     assert s.is_converged()
+
+    # Stick in TLV on n1
+    dummy_tlv = PadBodyTLV(t=42, body=b'asd')
+    n1.h.add_tlv(dummy_tlv)
+
+    s.run_until(s.is_converged, time_ceiling=1) # should converge in subsecond
+    assert s.is_converged()
+    n21 = n2.h.find_or_create_node_by_id(n1.h.own_node.node_id)
+    assert list([t for t in n21.tlvs if t.t==42]) == [dummy_tlv]
+
 
     s.set_connected(e1, e2, connected=False)
     if LOOP_SELF:

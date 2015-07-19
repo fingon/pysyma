@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Sun Jul 19 15:16:01 2015 mstenber
-# Edit time:     272 min
+# Last modified: Sun Jul 19 15:26:28 2015 mstenber
+# Edit time:     276 min
 #
 """
 
@@ -117,7 +117,7 @@ class Node:
         self.__dict__.update(**kwargs)
     def get_node_hash(self):
         if self.node_hash_dirty:
-            data = b''.join([x.encode() for x in self.tlvs])
+            data = encode_tlvs(*self.tlvs)
             self.node_hash = self.dncp.profile_hash(data)
             self.node_hash_dirty = False
         return self.node_hash
