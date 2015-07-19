@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sun Jul 19 09:14:49 2015 mstenber
-# Last modified: Sun Jul 19 13:58:44 2015 mstenber
-# Edit time:     82 min
+# Last modified: Sun Jul 19 15:17:54 2015 mstenber
+# Edit time:     88 min
 #
 """
 
@@ -140,7 +140,10 @@ def test_hncp():
     n2 = s.add_node()
     e1 = n1.ep('eth0')
     e2 = n2.ep('eth1')
-
+    assert e1.dncp == n1.h
+    assert e2.dncp == n2.h
+    assert n1 != n2
+    assert n1.h != n2.h
     if LOOP_SELF:
         assert set(s.get_common_link_neps(e1, None)) == set([e1])
         assert set(s.get_common_link_neps(e1, e1)) == set([e1])
@@ -168,7 +171,8 @@ def test_hncp():
     assert s.is_converged()
 
     s.set_connected(e1, e2, connected=False)
-    assert set(s.get_common_link_neps(e1, None)) == set([e1])
+    if LOOP_SELF:
+        assert set(s.get_common_link_neps(e1, None)) == set([e1])
 
 
 if __name__ == '__main__':

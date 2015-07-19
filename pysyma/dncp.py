@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Sun Jul 19 15:02:32 2015 mstenber
-# Edit time:     268 min
+# Last modified: Sun Jul 19 15:16:01 2015 mstenber
+# Edit time:     272 min
 #
 """
 
@@ -233,10 +233,11 @@ class DNCP:
         if self.own_node is not None:
             self.remove_node(self.own_node)
         self.schedule_immediate_and_mark_dirty(Dirty.local_tlv)
-        return self.add_node(Node(dncp=self, node_id=node_id))
-    def add_node(self, n):
+        return self.add_node(Node(dncp=self, node_id=node_id), own=True)
+    def add_node(self, n, own=False):
         _debug('%s add_node %s', self, n)
-        self.own_node = n
+        if own:
+            self.own_node = n
         self.id2node[n.node_id] = n
         self._dispatch('node_event', n, NodeEvent.add)
         self.schedule_immediate_and_mark_dirty(Dirty.graph)
