@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Sun Jul 19 16:01:58 2015 mstenber
-# Edit time:     283 min
+# Last modified: Sun Jul 19 16:53:23 2015 mstenber
+# Edit time:     284 min
 #
 """
 
@@ -279,7 +279,7 @@ class DNCP:
     def valid_sorted_nodes(self):
         for nid in self.node_ids:
             n = self.id2node[nid]
-            if n.last_reachable == self.last_prune:
+            if n.tlvs and n.last_reachable == self.last_prune:
                 yield n
     def _prune(self):
         now = self.sys.time()
@@ -325,7 +325,7 @@ class DNCP:
         self.scheduled_run = next
     def _calculate_network_hash(self):
         if not Dirty.network_hash in self.dirty: return
-        data = b''.join([struct.pack('>I', n.seqno) + n.get_node_hash() for n in self.valid_sorted_nodes() if n.tlvs])
+        data = b''.join([struct.pack('>I', n.seqno) + n.get_node_hash() for n in self.valid_sorted_nodes()])
         if data == self.network_hash: return
         _debug('%s _calculate_network_hash => %s', self, binascii.b2a_hex(data))
         self.network_hash = data
