@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sun Jul 19 09:14:49 2015 mstenber
-# Last modified: Sun Jul 19 15:21:42 2015 mstenber
-# Edit time:     90 min
+# Last modified: Sun Jul 19 16:05:33 2015 mstenber
+# Edit time:     98 min
 #
 """
 
@@ -180,11 +180,20 @@ def test_hncp():
     n21 = n2.h.find_or_create_node_by_id(n1.h.own_node.node_id)
     assert list([t for t in n21.tlvs if t.t==42]) == [dummy_tlv]
 
-
     s.set_connected(e1, e2, connected=False)
     if LOOP_SELF:
         assert set(s.get_common_link_neps(e1, None)) == set([e1])
 
+    # Should un-converge due to lack of keepalives
+    s.run_while(s.is_converged, time_ceiling=123)
+
+    # Wait out grace interval too
+    nt = s.t + pysyma.dncp.HNCP.GRACE_INTERVAL
+    s.run_while(lambda :s.t < nt)
+
+    n1l = list(n1.h.valid_sorted_nodes())
+    n2l = list(n2.h.valid_sorted_nodes())
+    assert (len(n1l) + len(n2l)) <= 3, '%s + %s <= 3' % (n1l, n2l)
 
 if __name__ == '__main__':
     import logging

@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Sun Jul 19 15:26:28 2015 mstenber
-# Edit time:     276 min
+# Last modified: Sun Jul 19 16:01:58 2015 mstenber
+# Edit time:     283 min
 #
 """
 
@@ -225,7 +225,7 @@ class DNCP:
         return self.name2ep[name]
     def find_or_create_node_by_id(self, node_id):
         if node_id not in self.id2node:
-            return self.add_node(Node(dncp=self, node_id=node_id))
+            return self.add_node(Node(dncp=self, node_id=node_id, last_reachable=self.last_prune-1))
         return self.id2node[node_id]
     # has highest id: omitted (needed only by PA)
     def set_node_id(self, node_id):
@@ -279,7 +279,7 @@ class DNCP:
     def valid_sorted_nodes(self):
         for nid in self.node_ids:
             n = self.id2node[nid]
-            if n is self.own_node or n.last_reachable == self.last_prune:
+            if n.last_reachable == self.last_prune:
                 yield n
     def _prune(self):
         now = self.sys.time()
@@ -291,7 +291,7 @@ class DNCP:
         # Eliminate unreachable nodes
         pending_remove = []
         for node in self.id2node.values():
-            if (node.last_reachable + self.GRACE_INTERVAL) < now:
+            if node.last_reachable and (node.last_reachable + self.GRACE_INTERVAL) < now:
                 pending_remove.append(node)
         for node in pending_remove:
             self.remove_node(node)
@@ -327,7 +327,7 @@ class DNCP:
         if not Dirty.network_hash in self.dirty: return
         data = b''.join([struct.pack('>I', n.seqno) + n.get_node_hash() for n in self.valid_sorted_nodes() if n.tlvs])
         if data == self.network_hash: return
-        _debug('%s _calculate_network_hash => %s', self, data)
+        _debug('%s _calculate_network_hash => %s', self, binascii.b2a_hex(data))
         self.network_hash = data
         for ep in self.name2ep.values():
             ep._trickle_set_i(self.TRICKLE_IMIN)
