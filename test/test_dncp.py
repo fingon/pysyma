@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 13:25:03 2015 mstenber
-# Last modified: Sat Jun 13 13:43:00 2015 mstenber
-# Edit time:     13 min
+# Last modified: Sun Jul 19 10:32:08 2015 mstenber
+# Edit time:     15 min
 #
 """
 
@@ -18,18 +18,6 @@
 
 import pysyma.dncp
 from pysyma.dncp_tlv import *
-
-# TBD: Implement something net_sim-ish here
-class DummySystem:
-    def schedule(self, dt, cb, *a):
-        pass
-    def send(self, ep, src, dst, tl):
-        pass
-    def time(self):
-        return 0
-
-def test_hncp():
-    h = pysyma.dncp.HNCP(DummySystem())
 
 def test_tlv():
     test_material = [ReqNetState(),

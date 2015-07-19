@@ -29,6 +29,9 @@ each is hard work by hand. hopefully this makes it easier
 - write a DNCP profile which uses TCP for unicast, and UDP for multicast
   state sharing (+ simple PSK-based encrypted block abstraction _for both_)
 
+.. for the time being, just use HNCP transport though, as I was too lazy
+when writing the shsp draft :p
+
 - provide simple interface for 'client' applications to access pysyma
   state, and publish their own
 

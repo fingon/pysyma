@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sat Jun 13 12:05:01 2015 mstenber
-# Last modified: Sat Jun 13 13:24:52 2015 mstenber
-# Edit time:     28 min
+# Last modified: Sun Jul 19 14:26:23 2015 mstenber
+# Edit time:     43 min
 #
 """
 
@@ -30,13 +30,7 @@ MTU_ISH = 1400 # random MTU we use for splitting TLVs when we send stuff
 UPDATE_FLAG_SET_DEFAULT_PREFIX=0x80
 UPDATE_FLAG_SET_DEFAULT_RID=0x40
 
-class EqMixin:
-    def __eq__(self, o):
-        return type(o) is type(self) and self.__dict__ == o.__dict__
-    def __ne_(self, o):
-        return not self.__eq__(o)
-
-class Blob(EqMixin):
+class Blob:
     def __init__(self, **kw):
         for k, v in kw.items():
             setattr(self, k, v)
@@ -49,6 +43,14 @@ class Blob(EqMixin):
         raise NotImplementedError
     def decode_buffer(self, x):
         raise NotImplementedError
+    def __eq__(self, o):
+        return type(self) == type(o) and self.encode() == o.encode()
+    def __lt__(self, o):
+        return self.encode() < o.encode()
+    def __hash__(self):
+        return 0
+
+functools.total_ordering(Blob)
 
 class CStruct(Blob):
     format = None # subclass responsibility
@@ -56,9 +58,15 @@ class CStruct(Blob):
     arkeys = None # additional repr-keys
     def __init__(self, **kw):
         Blob.__init__(self, **kw)
+    def __hash__(self):
+        h = 0
+        for key in self.keys:
+            h = h ^ hash(getattr(self, key, None))
+        return h
     def __repr__(self):
+        ark = self.arkeys or []
         return '%s(%s)' % (self.__class__.__name__,
-                           ', '.join(['%s=%s' % (k, repr(v)) for k, v in self.__dict__.items() if k in self.keys or k in self.arkeys]))
+                           ', '.join(['%s=%s' % (k, repr(v)) for k, v in self.__dict__.items() if k in self.keys or k in ark]))
     def copy(self):
         return self.__class__(**self.__dict__)
     def get_format(self):
@@ -162,5 +170,6 @@ def decode_tlvs(x):
         i += tlv.wire_size()
 
 def encode_tlvs(*l):
+    assert l
     # TBD: Is there some cross-Python-version 'more efficient' syntax?
     return functools.reduce(operator.add, [x.encode() for x in l])
