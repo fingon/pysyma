@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sun Jul 19 09:14:49 2015 mstenber
-# Last modified: Sun Jul 19 16:05:33 2015 mstenber
-# Edit time:     98 min
+# Last modified: Sun Jul 19 16:52:26 2015 mstenber
+# Edit time:     102 min
 #
 """
 
@@ -135,7 +135,15 @@ class DummySystem:
         _debug('set_time %s (+%s)' % (t, t - self.start_t))
         self.t = t
 
-def test_hncp():
+def test_hncp_tube():
+    s = DummySystem()
+    nodes = list([s.add_node() for i in range(10)])
+    for i in range(len(nodes)-1):
+        s.set_connected(nodes[i].ep('down'),
+                        nodes[i+1].ep('up'))
+    s.run_until(s.is_converged, time_ceiling=30) # much too 'big'
+
+def test_hncp_two():
     s = DummySystem()
     n1 = s.add_node()
     n2 = s.add_node()
@@ -198,5 +206,6 @@ def test_hncp():
 if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.DEBUG)
-    test_hncp()
+    #test_hncp_two()
+    test_hncp_tube()
 
