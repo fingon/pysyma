@@ -9,12 +9,21 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sun Jul 19 09:14:49 2015 mstenber
-# Last modified: Sun Jul 19 16:52:26 2015 mstenber
-# Edit time:     102 min
+# Last modified: Sun Jul 19 16:58:42 2015 mstenber
+# Edit time:     104 min
 #
 """
 
 Minimal net-sim-ish test code
+
+This stuff uses raw Endpoint _objects_ as src/dst addresses. While not
+elegant, it also makes the code test relatively DNCP- and not
+HNCP-specific.
+
+Also, e.g. real addresses are not needed anywhere, and this sort of
+proves it (sticking Endpoint TLVs anywhere results in bad things due
+to lack of e.g. __eq__, __hash__, .. although of course built-in
+equality operation of arbitrary instances does apply)
 
 """
 
