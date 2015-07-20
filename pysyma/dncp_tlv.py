@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sat Jun 13 12:05:01 2015 mstenber
-# Last modified: Sun Jul 19 14:26:23 2015 mstenber
-# Edit time:     43 min
+# Last modified: Mon Jul 20 18:22:51 2015 mstenber
+# Edit time:     44 min
 #
 """
 
@@ -86,9 +86,6 @@ class CStruct(Blob):
     def format_size(self):
         return self.get_format().size
 
-def _decode_error(desc, x):
-    raise ValueError('%s in %s' % (desc, x))
-
 # Observe hardcoded lengths (matching HNCP) of hash/node id
 # length.. 4s/8s are the fields to replace :)
 
@@ -115,10 +112,7 @@ class PadBodyTLV(TLV):
         if b != self.body:
             self.body = b
     def pad_size(self):
-        l = len(self.body)
-        if PAD_TO:
-            return (PAD_TO - l) % PAD_TO
-        return 0
+        return PAD_TO and ((PAD_TO - len(self.body)) % PAD_TO) or 0
     def wire_size(self):
         return TLV.wire_size(self) + len(self.body) + self.pad_size()
     def encode(self):

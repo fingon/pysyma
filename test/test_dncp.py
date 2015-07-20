@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 13:25:03 2015 mstenber
-# Last modified: Sun Jul 19 10:32:08 2015 mstenber
-# Edit time:     15 min
+# Last modified: Mon Jul 20 18:22:20 2015 mstenber
+# Edit time:     17 min
 #
 """
 
@@ -18,6 +18,20 @@
 
 import pysyma.dncp
 from pysyma.dncp_tlv import *
+
+def test_blob():
+    b = Blob()
+    try:
+        b.encode()
+        assert False
+    except NotImplementedError:
+        pass
+    try:
+        b.decode_buffer(b'foo')
+        assert False
+    except NotImplementedError:
+        pass
+    assert hash(b) == 0
 
 def test_tlv():
     test_material = [ReqNetState(),
@@ -38,5 +52,6 @@ def test_tlv():
         tl = list(decode_tlvs(t.encode()))
         assert len(tl) == 1
         assert tl[0] == t
+        assert t.copy() == t
     tl = list(decode_tlvs(encode_tlvs(*test_material)))
     assert tl == test_material
