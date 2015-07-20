@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Sun Jul 19 16:53:23 2015 mstenber
-# Edit time:     284 min
+# Last modified: Mon Jul 20 18:23:27 2015 mstenber
+# Edit time:     285 min
 #
 """
 
@@ -173,7 +173,7 @@ class Node:
         if self.dncp.profile_hash(ns.body) != ns.hash:
             _error('_update_from_ns received corrupted hash')
             return
-        if self is self.dncp.own_node:
+        if self.is_self():
             _debug('_update_from_ns from own id - collision')
             if self.collided:
                 self.dncp.profile_collision()

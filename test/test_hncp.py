@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sun Jul 19 09:14:49 2015 mstenber
-# Last modified: Sun Jul 19 16:58:42 2015 mstenber
-# Edit time:     104 min
+# Last modified: Mon Jul 20 18:27:58 2015 mstenber
+# Edit time:     108 min
 #
 """
 
@@ -144,13 +144,26 @@ class DummySystem:
         _debug('set_time %s (+%s)' % (t, t - self.start_t))
         self.t = t
 
-def test_hncp_tube():
+def _setup_tube(n):
     s = DummySystem()
-    nodes = list([s.add_node() for i in range(10)])
+    nodes = list([s.add_node() for i in range(n)])
     for i in range(len(nodes)-1):
         s.set_connected(nodes[i].ep('down'),
                         nodes[i+1].ep('up'))
+    return s, nodes
+
+def test_hncp_tube():
+    s, nodes = _setup_tube(10)
     s.run_until(s.is_converged, time_ceiling=30) # much too 'big'
+
+def test_hncp_collision():
+    n = 6
+    s, nodes = _setup_tube(n)
+    # even and odd id'd nodes have same id..
+    for i in range(2, n):
+        nodes[i].h.set_node_id(nodes[i%2].h.own_node.node_id)
+    s.run_until(s.is_converged, time_ceiling=30) # much too 'big'
+
 
 def test_hncp_two():
     s = DummySystem()
