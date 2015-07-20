@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Mon Jul 20 18:23:27 2015 mstenber
-# Edit time:     285 min
+# Last modified: Mon Jul 20 18:31:53 2015 mstenber
+# Edit time:     286 min
 #
 """
 
@@ -407,7 +407,7 @@ class HNCP(DNCP):
     TRICKLE_IMIN = 0.2
     TRICKLE_IMAX = 40
     TRICKLE_K = 1
-    KEEPALIVE_INTERVAL = 24
+    KEEPALIVE_INTERVAL = 20
     KEEPALIVE_MULTIPLIER = 2.1
     GRACE_INTERVAL = 60
     def _set_id(self, node_id):
