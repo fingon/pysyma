@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Tue Jul 21 10:52:08 2015 mstenber
-# Edit time:     352 min
+# Last modified: Tue Jul 21 10:54:39 2015 mstenber
+# Edit time:     353 min
 #
 """
 
@@ -178,6 +178,8 @@ class Node:
                     yield t1, n
     def _get_ns(self, short):
         assert self.seqno
+        if not short and self.is_self():
+            self.dncp._flush_local()
         now = self.dncp.sys.time()
         return NodeState(node_id=self.node_id,
                          seqno=self.seqno,
@@ -368,6 +370,7 @@ class DNCP:
                 t.set_i(0)
     def _flush_local(self):
         if not Dirty.local_tlv in self.dirty: return
+        self.dirty.remove(Dirty.local_tlv)
         if self.tlvs == self.own_node.tlvs and not Dirty.local_always in self.dirty:
             return
         self.event('republish')
