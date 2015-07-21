@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sun Jul 19 09:14:49 2015 mstenber
-# Last modified: Tue Jul 21 08:30:26 2015 mstenber
-# Edit time:     121 min
+# Last modified: Tue Jul 21 10:05:19 2015 mstenber
+# Edit time:     126 min
 #
 """
 
@@ -232,6 +232,12 @@ def test_hncp_two():
     assert s.is_converged()
     n21 = n2.h.find_or_create_node_by_id(n1.h.own_node.node_id)
     assert list([t for t in n21.tlvs if t.t==42]) == [dummy_tlv]
+
+    # Make sure the state is stable
+    assert n1.events
+    n1.events = []
+    s.run_seconds(1234)
+    assert not n1.events
 
     s.set_connected(e1, e2, connected=False)
     if LOOP_SELF:
