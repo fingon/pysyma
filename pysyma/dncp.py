@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Tue Jul 21 13:41:51 2015 mstenber
-# Edit time:     365 min
+# Last modified: Tue Jul 21 16:36:17 2015 mstenber
+# Edit time:     411 min
 #
 """
 
@@ -105,7 +105,7 @@ class Endpoint:
         nid = binascii.b2a_hex(nid)
         return '<Endpoint %s[%d]@/%s>' % (self.name, self.ep_id, nid)
     def send_net_state(self, src=None, dst=None):
-        l = [NetState(hash=self.dncp.network_hash)]
+        l = [NetState(hash=self.dncp.get_network_hash())]
         if dst:
             for n in self.dncp.valid_sorted_nodes():
                 l.append(n._get_ns(short=True))
@@ -138,19 +138,19 @@ class Node:
     tlvs = []
     seqno = 0
     origination_time = 0
-    node_hash_dirty = True
-    node_hash = b''
+    _node_hash_dirty = True
+    _node_hash = b''
     last_reachable = 0
     collided = False
     # dncp supplied by constructor always
     def __init__(self, **kwargs):
         self.__dict__.update(**kwargs)
     def get_node_hash(self):
-        if self.node_hash_dirty:
+        if self._node_hash_dirty:
             data = encode_tlvs(*self.tlvs)
-            self.node_hash = self.dncp.profile_hash(data)
-            self.node_hash_dirty = False
-        return self.node_hash
+            self._node_hash = self.dncp.profile_hash(data)
+            self._node_hash_dirty = False
+        return self._node_hash
     def is_self(self):
         return self.dncp.own_node is self
     def set_tlvs(self, tlvs):
@@ -161,11 +161,11 @@ class Node:
         s2 = set(tlvs)
         for t1 in s1.difference(s2):
             self.dncp.event('tlv_event', self, t1, TLVEvent.add)
+        self.tlvs = tlvs
         for t2 in s2.difference(s1):
             self.dncp.event('tlv_event', self, t2, TLVEvent.remove)
-        self.tlvs = tlvs
         self.dncp.schedule_immediate_dirty(Dirty.network_hash, Dirty.graph)
-        self.node_hash_dirty = True
+        self._node_hash_dirty = True
     def _prune_traverse(self):
         # Already traversed this prune?
         if self.last_reachable == self.dncp.last_prune:
@@ -211,7 +211,8 @@ class Node:
             else:
                 self.collided = True
                 self.seqno = ns.seqno + 1000
-            self.dncp.schedule_immediate_dirty(Dirty.local_always)
+            self.dncp.schedule_immediate_dirty(Dirty.local_tlv,
+                                               Dirty.local_always)
             return
         tlvs = decode_tlvs(ns.body)
         if tlvs is None:
@@ -220,6 +221,7 @@ class Node:
         self.seqno = ns.seqno
         self.origination_time = now + ns.age / 1000.0
         self.set_tlvs(tlvs)
+        self.dncp.schedule_immediate_dirty(Dirty.network_hash)
         # paranoia starts here:
         assert self.get_node_hash() == ns.hash
 
@@ -228,10 +230,10 @@ class DNCP:
     own_node = None
     scheduled_immediate = False
     scheduled_run = 0
-    network_hash = b''
     last_prune = 0
     last_rns = 0 # last request node state sent
     network_consistent = None
+    network_hash = None
     def __init__(self, sys):
         self.name2ep = {}
         self.id2ep = {}
@@ -240,6 +242,7 @@ class DNCP:
         self.first_free_ep_id = 1
         self.tlvs = [] # local TLVs we want to publish
         self.dirty = set()
+        self.dirty.add(Dirty.network_hash)
         self.subscribers = []
         self.sys = sys
         self.schedule_immediate_dirty()
@@ -259,7 +262,9 @@ class DNCP:
         return self.name2ep[name]
     def find_or_create_node_by_id(self, node_id):
         if node_id not in self.id2node:
-            return self.add_node(Node(dncp=self, node_id=node_id, last_reachable=self.last_prune-1))
+            t = self.sys.time()-1
+            t = max(t-self.GRACE_INTERVAL/2, min(t, self.last_prune-1))
+            return self.add_node(Node(dncp=self, node_id=node_id, last_reachable=t))
         return self.id2node[node_id]
     # has highest id: omitted (needed only by PA)
     def set_node_id(self, node_id):
@@ -317,8 +322,9 @@ class DNCP:
                 yield n
     def _prune(self):
         now = self.sys.time()
-        if not Dirty.graph in self.dirty and (now - self.last_prune) < self.GRACE_INTERVAL:
+        if not Dirty.graph in self.dirty:
             return
+        self.dirty.remove(Dirty.graph)
         # Ok, let's run prune
         self.last_prune = now
         self.own_node._prune_traverse()
@@ -329,6 +335,7 @@ class DNCP:
                 pending_remove.append(node)
         for node in pending_remove:
             self.remove_node(node)
+        self.dirty.add(Dirty.network_hash)
     def _prune_neighbors(self):
         _debug('_prune_neighbors')
         now = self.sys.time()
@@ -350,6 +357,7 @@ class DNCP:
         now = self.sys.time()
         next = now + 60 # by default we run every 60 seconds, no matter what
         if (now - self.own_node.origination_time) > (2**32 - 2**16):
+            self.dirty.add(Dirty.local_tlv)
             self.dirty.add(Dirty.local_always)
         self._prune_neighbors()
         self._prune()
@@ -357,8 +365,11 @@ class DNCP:
         self._calculate_network_hash()
         for ep in self.enabled_eps():
             next = min(filter(None, [next, ep._run()]))
-        self.dirty = set()
         if self.scheduled_immediate:
+            return
+        if self.dirty:
+            _debug('_run repeating immediately - dirty: %s', self.dirty)
+            self.schedule_immediate_dirty()
             return
         assert next > now
         if self.scheduled_run > now and self.scheduled_run <= next:
@@ -367,24 +378,45 @@ class DNCP:
         self.sys.schedule(next - now, self._run)
         self.scheduled_run = next
     def _calculate_network_hash(self):
-        if not Dirty.network_hash in self.dirty: return
-        data = b''.join([struct.pack('>I', n.seqno) + n.get_node_hash() for n in self.valid_sorted_nodes()])
-        if data == self.network_hash: return
-        _debug('%s _calculate_network_hash => %s', self, binascii.b2a_hex(data))
-        self.network_hash = data
-        for ep in self.name2ep.values():
-            for t in ep.get_trickles():
-                t.set_i(0)
+        if Dirty.network_hash in self.dirty:
+            self.dirty.remove(Dirty.network_hash)
+            _debug('%s _calculate_network_hash', self)
+            l = list([(struct.pack('>I', n.seqno) + n.get_node_hash()) for n in self.valid_sorted_nodes()])
+            for n in self.valid_sorted_nodes():
+                _debug(' %s %d %s', binascii.b2a_hex(n.node_id), n.seqno,
+                       binascii.b2a_hex(n.get_node_hash()))
+            if l:
+                data = functools.reduce(operator.add, l)
+            else:
+                data = b''
+            data = self.profile_hash(data)
+            if data != self.network_hash:
+                _debug('=> %s', binascii.b2a_hex(data))
+                self.network_hash = data
+                # Reset Trickle
+                for ep in self.name2ep.values():
+                    for t in ep.get_trickles():
+                        t.set_i(0)
+        return self.network_hash
+    def get_network_hash(self):
+        self._calculate_network_hash()
+        assert len(self.network_hash) == self.HASH_LENGTH
+        return self.network_hash
     def _flush_local(self):
         if not Dirty.local_tlv in self.dirty: return
         self.dirty.remove(Dirty.local_tlv)
-        if self.tlvs == self.own_node.tlvs and not Dirty.local_always in self.dirty:
-            return
+        if self.tlvs == self.own_node.tlvs:
+            if not Dirty.local_always in self.dirty:
+                return
+        try:
+            self.dirty.remove(Dirty.local_always)
+        except KeyError:
+            pass
         self.event('republish')
         self.own_node.set_tlvs(self.tlvs and self.tlvs[:] or [])
         self.own_node.seqno += 1
         self.own_node.origination_time = self.sys.time()
-        self.dirty.add(Dirty.network_hash)
+        self.schedule_immediate_dirty(Dirty.network_hash)
     def _heard(self, ep, src, dst, eptlv):
         # don't add self as neighbor, ever
         if eptlv.node_id == self.own_node.node_id: return
@@ -428,7 +460,7 @@ class DNCP:
                 else:
                     _debug(' ignoring reqnodestate %s, not up to date', t)
             elif isinstance(t, NetState):
-                is_consistent = t.hash == self.network_hash
+                is_consistent = t.hash == self.get_network_hash()
                 if self.network_consistent is not is_consistent:
                     self.network_consistent = is_consistent
                     self.event('network_consistent', is_consistent)
@@ -454,6 +486,7 @@ class DNCP:
         raise NotImplementedError # child responsibility
     def ep_send(self, ep, src, dst, l):
         l[0:0] = [NodeEP(node_id=self.own_node.node_id, ep_id=ep.ep_id)]
+        _debug('%s ep_send %s->%s: %s', ep, src, dst, l)
         self.sys.send(ep, src, dst, l)
 
 import hashlib

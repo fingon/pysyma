@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sun Jul 19 09:14:49 2015 mstenber
-# Last modified: Tue Jul 21 13:44:41 2015 mstenber
-# Edit time:     134 min
+# Last modified: Tue Jul 21 16:33:49 2015 mstenber
+# Edit time:     142 min
 #
 """
 
@@ -36,6 +36,7 @@ from pysyma.dncp_tlv import *
 
 import heapq
 import collections
+import binascii
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -117,13 +118,17 @@ class DummySystem:
         if dirty_nodes:
             _debug('is_converged: not, dirty nodes %s', dirty_nodes)
             return False
-        hashes = set([n.h.network_hash for n in self.nodes])
+        count_nodes = set([len(n.h.id2node) for n in self.nodes if len(n.h.id2node)])
+        if set([len(self.nodes)]) != count_nodes:
+            _debug('is_converged: not, wrong counts in general, %s', count_nodes)
+            return False
+        count_nodes = set([len(list(n.h.valid_sorted_nodes())) for n in self.nodes if len(n.h.id2node)])
+        if set([len(self.nodes)]) != count_nodes:
+            _debug('is_converged: not, wrong counts in reachable, %s', count_nodes)
+            return False
+        hashes = set([binascii.b2a_hex(n.h.get_network_hash()) for n in self.nodes])
         if len(hashes) != 1:
             _debug('is_converged: not 1 hash? %s', hashes)
-            return False
-        wrong_count_nodes = list([n for n in self.nodes if len(n.h.id2node) != len(self.nodes)])
-        if wrong_count_nodes:
-            _debug('is_converged: not with wrong # of nodes in %s', wrong_count_nodes)
             return False
         return True
     def run_seconds(self, s):

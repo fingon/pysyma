@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Tue Jul 21 13:07:01 2015 mstenber
-# Last modified: Tue Jul 21 13:48:32 2015 mstenber
-# Edit time:     16 min
+# Last modified: Tue Jul 21 16:15:15 2015 mstenber
+# Edit time:     17 min
 #
 """
 
@@ -110,7 +110,6 @@ class LinuxSystemInterface:
         ifindex = socket.if_nametoindex(ifname)
         tlvs = list(tlvs)
         b = encode_tlvs(*tlvs)
-        _debug('send @%s -> %s: %s (%d bytes)', ifname, dst, tlvs, len(b))
         self.s.sendto(b, (dst, HNCP_PORT, 0, ifindex))
     def setup_hncp(self, hncp, iflist):
         addrinfo = socket.getaddrinfo(HNCP_GROUP, None)[0]
