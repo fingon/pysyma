@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Tue Jul 21 16:36:17 2015 mstenber
-# Edit time:     411 min
+# Last modified: Tue Jul 21 23:05:58 2015 mstenber
+# Edit time:     431 min
 #
 """
 
@@ -170,6 +170,7 @@ class Node:
         # Already traversed this prune?
         if self.last_reachable == self.dncp.last_prune:
             return
+        _debug(' _prune_traverse %s', self)
         self.last_reachable = self.dncp.last_prune
         for ntlv, n in self._get_bidir_neighbors():
             n._prune_traverse()
@@ -219,7 +220,7 @@ class Node:
             return
         now = self.dncp.sys.time()
         self.seqno = ns.seqno
-        self.origination_time = now + ns.age / 1000.0
+        self.origination_time = now - ns.age / 1000.0
         self.set_tlvs(tlvs)
         self.dncp.schedule_immediate_dirty(Dirty.network_hash)
         # paranoia starts here:
@@ -321,11 +322,12 @@ class DNCP:
             if n.tlvs and n.last_reachable == self.last_prune:
                 yield n
     def _prune(self):
-        now = self.sys.time()
         if not Dirty.graph in self.dirty:
             return
+        _debug('_prune')
         self.dirty.remove(Dirty.graph)
         # Ok, let's run prune
+        now = self.sys.time()
         self.last_prune = now
         self.own_node._prune_traverse()
         # Eliminate unreachable nodes
@@ -461,6 +463,7 @@ class DNCP:
                     _debug(' ignoring reqnodestate %s, not up to date', t)
             elif isinstance(t, NetState):
                 is_consistent = t.hash == self.get_network_hash()
+                _debug('NetState is %s (%s)', is_consistent, ne)
                 if self.network_consistent is not is_consistent:
                     self.network_consistent = is_consistent
                     self.event('network_consistent', is_consistent)
