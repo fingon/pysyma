@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Tue Jul 21 08:31:57 2015 mstenber
-# Edit time:     307 min
+# Last modified: Tue Jul 21 08:41:00 2015 mstenber
+# Edit time:     310 min
 #
 """
 
@@ -346,6 +346,7 @@ class DNCP:
         if not Dirty.local_tlv in self.dirty: return
         if self.tlvs == self.own_node.tlvs and not Dirty.local_always in self.dirty:
             return
+        self.event('republish')
         self.own_node.set_tlvs(self.tlvs and self.tlvs[:] or [])
         self.own_node.seqno += 1
         self.own_node.origination_time = self.sys.time()
