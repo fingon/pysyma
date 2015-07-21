@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Tue Jul 21 08:41:00 2015 mstenber
-# Edit time:     310 min
+# Last modified: Tue Jul 21 10:00:42 2015 mstenber
+# Edit time:     336 min
 #
 """
 
@@ -52,26 +52,51 @@ class Subscriber:
     def ep_event(self, ep, event): pass
     # msg reception callback omitted
 
-class Endpoint:
-    # dncp supplied by constructor always
-    enabled = False
-    last_sent = 0
+class Trickle:
     def __init__(self, **kwargs):
         self.__dict__.update(**kwargs)
-        self._trickle_set_i(0)
-    def __repr__(self):
-        nid = self.dncp.own_node.node_id
-        nid = binascii.b2a_hex(nid)
-        return '<Endpoint %s[%d]@/%s>' % (self.name, self.ep_id, nid)
-    def _trickle_set_i(self, i):
+        self.last_sent = self.dncp.sys.time()
+        self.set_i(0)
+    def set_i(self, i):
         now = self.dncp.sys.time()
         self.i = min(max(self.dncp.TRICKLE_IMIN, i), self.dncp.TRICKLE_IMAX)
         self.send_time = now + self.i * (1 + random.random()) / 2
         self.interval_end_time = now + self.i
         self.c = 0
-    def _send_net_state(self, src=None, dst=None):
-        if not dst:
+    def _run(self):
+        now = self.dncp.sys.time()
+        if now >= self.interval_end_time:
+            _debug('%s doubling Trickle interval', self)
+            self.set_i(self.i * 2)
+            return self._run()
+        ka_time = self.last_sent + self.dncp.KEEPALIVE_INTERVAL
+        if now >= ka_time:
+            self.send()
             self.last_sent = self.dncp.sys.time()
+            return self._run()
+        if now >= self.send_time:
+            self._trickle_send_maybe()
+        return min(ka_time, self.send_time, self.interval_end_time)
+    def _trickle_send_maybe(self):
+        if self.c < self.dncp.TRICKLE_K:
+            self.send()
+            self.last_sent = self.dncp.sys.time()
+        self.send_time = self.interval_end_time
+
+class Endpoint:
+    # dncp supplied by constructor always
+    enabled = False
+    def __init__(self, **kwargs):
+        self.per_endpoint_ka = kwargs['dncp'].PER_ENDPOINT_KA
+        self.per_peer_ka = kwargs['dncp'].PER_PEER_KA
+        self.__dict__.update(**kwargs)
+        if self.per_endpoint_ka:
+            self.trickle = Trickle(dncp=self.dncp, send=self._send_net_state)
+    def __repr__(self):
+        nid = self.dncp.own_node.node_id
+        nid = binascii.b2a_hex(nid)
+        return '<Endpoint %s[%d]@/%s>' % (self.name, self.ep_id, nid)
+    def _send_net_state(self, src=None, dst=None):
         l = [NodeEP(node_id=self.dncp.own_node.node_id,
                     ep_id=self.ep_id),
              NetState(hash=self.dncp.network_hash)]
@@ -79,21 +104,16 @@ class Endpoint:
             for n in self.dncp.valid_sorted_nodes():
                 l.append(n._get_ns(short=True))
         self.dncp.sys.send(self, src, dst, l)
-    def _trickle_send_maybe(self):
-        if self.c < self.dncp.TRICKLE_K:
-            self._send_net_state()
-        self.send_time = self.dncp.sys.time() + self.dncp.KEEPALIVE_INTERVAL
     def _run(self):
         _debug('%s _run', self)
         assert self.enabled
-        now = self.dncp.sys.time()
-        if now >= self.interval_end_time:
-            _debug('%s doubling Trickle interval', self)
-            self._trickle_set_i(self.i * 2)
-            return self._run()
-        if now >= self.send_time:
-            self._trickle_send_maybe()
-        return min(self.send_time, self.interval_end_time)
+        return min([x._run() for x in self.get_trickles()])
+    def get_trickles(self):
+        if self.per_endpoint_ka:
+            yield self.trickle
+        if self.per_peer_ka:
+            for n in [tlv for tlv in self.dncp.tlvs if isinstance(tlv, Neighbor) and tlv.ep_id == self.ep_id]:
+                yield n.trickle
     def ext_ready(self, enabled):
         if enabled == self.enabled: return
         self.enabled = enabled
@@ -218,9 +238,9 @@ class DNCP:
             s.event(n, *a, **kw)
     def find_ep_by_id(self, ep_id):
         return self.id2ep.get(ep_id, None)
-    def find_or_create_ep_by_name(self, name):
+    def find_or_create_ep_by_name(self, name, **kw):
         if name not in self.name2ep:
-            ep = Endpoint(dncp=self, name=name, ep_id=self.first_free_ep_id)
+            ep = Endpoint(dncp=self, name=name, ep_id=self.first_free_ep_id, **kw)
             self.first_free_ep_id += 1
             self.name2ep[ep.name] = ep
             self.id2ep[ep.ep_id] = ep
@@ -341,7 +361,8 @@ class DNCP:
         _debug('%s _calculate_network_hash => %s', self, binascii.b2a_hex(data))
         self.network_hash = data
         for ep in self.name2ep.values():
-            ep._trickle_set_i(self.TRICKLE_IMIN)
+            for t in ep.get_trickles():
+                t.set_i(0)
     def _flush_local(self):
         if not Dirty.local_tlv in self.dirty: return
         if self.tlvs == self.own_node.tlvs and not Dirty.local_always in self.dirty:
@@ -361,6 +382,11 @@ class DNCP:
             if ftlv == ntlv:
                 return ntlv
         ftlv.last_contact = self.sys.time()
+        if ep.per_peer_ka:
+            def _send_net_state():
+                ep._send_net_state(src=dst, dst=src)
+                ftlv.trickle.last_sent = self.sys.time()
+            ftlv.trickle = Trickle(dncp=self, send=_send_net_state)
         return self.add_tlv(ftlv)
     def ext_received(self, ep, src, dst, l):
         #l = decode_tlvs(body)
@@ -379,6 +405,8 @@ class DNCP:
                     nep = t
             elif isinstance(t, ReqNetState):
                 ep._send_net_state(dst, src)
+                if ne and ep.per_peer_ka:
+                    ne.trickle.last_sent = self.sys.time()
             elif isinstance(t, ReqNodeState):
                 n = self.id2node.get(t.node_id)
                 if n and n.last_reachable == self.last_prune:
@@ -421,6 +449,8 @@ class HNCP(DNCP):
     KEEPALIVE_INTERVAL = 20
     KEEPALIVE_MULTIPLIER = 2.1
     GRACE_INTERVAL = 60
+    PER_PEER_KA = False
+    PER_ENDPOINT_KA = True
     def _set_id(self, node_id):
         if node_id is None:
             while True:
