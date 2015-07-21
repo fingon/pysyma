@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 13:25:03 2015 mstenber
-# Last modified: Tue Jul 21 08:10:23 2015 mstenber
-# Edit time:     18 min
+# Last modified: Tue Jul 21 14:00:39 2015 mstenber
+# Edit time:     21 min
 #
 """
 
@@ -53,9 +53,11 @@ def test_tlv():
         tl = list(decode_tlvs(t.encode()))
         assert len(tl) == 1
         assert tl[0] == t
+        assert tl[0].__dict__ == t.__dict__
         assert t.copy() == t
     tl = list(decode_tlvs(encode_tlvs(*test_material)))
     assert tl == test_material
+    assert not tl[0].l
 
 if __name__ == '__main__':
     test_tlv()

@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sat Jun 13 12:05:01 2015 mstenber
-# Last modified: Mon Jul 20 18:41:26 2015 mstenber
-# Edit time:     44 min
+# Last modified: Tue Jul 21 14:01:27 2015 mstenber
+# Edit time:     46 min
 #
 """
 
@@ -95,7 +95,7 @@ class TLV(CStruct):
     def wire_size(self):
         return self.format_size()
     def encode(self):
-        self.l = self.wire_size() - 2
+        self.l = self.wire_size() - TLV_SIZE
         return CStruct.encode(self)
 
 TLV_SIZE=TLV().wire_size()
