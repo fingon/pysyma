@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 13:25:03 2015 mstenber
-# Last modified: Mon Jul 20 18:22:20 2015 mstenber
-# Edit time:     17 min
+# Last modified: Tue Jul 21 08:10:23 2015 mstenber
+# Edit time:     18 min
 #
 """
 
@@ -47,7 +47,8 @@ def test_tlv():
                                hash=b'12345678'),
                      NodeState(node_id=b'foob', seqno=123, age=234,
                                hash=b'12345678', body=b'x'),
-                     Neighbor(n_node_id=b'barb', n_ep_id=42, ep_id=7)]
+                     Neighbor(n_node_id=b'barb', n_ep_id=42, ep_id=7),
+                     KAInterval(ep_id=42, interval=12345)]
     for t in test_material:
         tl = list(decode_tlvs(t.encode()))
         assert len(tl) == 1
@@ -55,3 +56,6 @@ def test_tlv():
         assert t.copy() == t
     tl = list(decode_tlvs(encode_tlvs(*test_material)))
     assert tl == test_material
+
+if __name__ == '__main__':
+    test_tlv()

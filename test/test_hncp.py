@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sun Jul 19 09:14:49 2015 mstenber
-# Last modified: Mon Jul 20 18:27:58 2015 mstenber
-# Edit time:     108 min
+# Last modified: Tue Jul 21 08:30:26 2015 mstenber
+# Edit time:     121 min
 #
 """
 
@@ -42,10 +42,20 @@ _logger = logging.getLogger(__name__)
 _debug = _logger.debug
 
 # TBD: Implement something net_sim-ish here
-class DummyNode:
+class DummyNode(pysyma.dncp.Subscriber):
     def __init__(self, s):
         self.s = s
+        self.events = []
         self.h = pysyma.dncp.HNCP(self)
+        self.h.add_subscriber(self)
+    def republish(self):
+        self.events.append(EVENT_REPUBLISH)
+    def event(self, n, *a, **kwa):
+        self.events.append((n, a, kwa))
+    def tlv_event(self, n, tlv, event): pass
+    def node_event(self, n, event): pass
+    def ep_event(self, ep, event): pass
+
     def schedule(self, dt, cb, *a):
         if dt < MINIMUN_TIMEOUT: dt = MINIMUN_TIMEOUT
         _debug('%s schedule +%s %s(%s)' % (self, dt, cb, a))
@@ -122,6 +132,10 @@ class DummySystem:
             _debug('is_converged: not with wrong # of nodes in %s', wrong_count_nodes)
             return False
         return True
+    def run_seconds(self, s):
+        et = self.t + s
+        self.run_until(lambda :self.next_time() > et)
+        self.set_time(et)
     def run_until(self, cond, iter_ceiling=10000, time_ceiling=None):
         st = self.t
         i = 0
@@ -132,12 +146,14 @@ class DummySystem:
             if cond():
                 return
             assert self.timeouts
-            self.set_time(self.timeouts[0][0])
+            self.set_time(self.next_time())
             i += 1
             assert i <= iter_ceiling
             assert time_ceiling is None or (st + time_ceiling) > self.t
     def run_while(self, cond, **kwa):
         return self.run_until(lambda :not cond(), **kwa)
+    def next_time(self):
+        return self.timeouts[0][0]
     def set_time(self, t):
         if self.t >= t:
             return
@@ -164,6 +180,13 @@ def test_hncp_collision():
         nodes[i].h.set_node_id(nodes[i%2].h.own_node.node_id)
     s.run_until(s.is_converged, time_ceiling=30) # much too 'big'
 
+def test_hncp_ka():
+    n = 2
+    s, nodes = _setup_tube(n)
+    s.run_until(s.is_converged, time_ceiling=3)
+    nodes[0].h.add_tlv(KAInterval(ep_id=0, interval=10))
+    s.run_seconds(3)
+    assert not s.is_converged()
 
 def test_hncp_two():
     s = DummySystem()
@@ -218,8 +241,7 @@ def test_hncp_two():
     s.run_while(s.is_converged, time_ceiling=123)
 
     # Wait out grace interval too
-    nt = s.t + pysyma.dncp.HNCP.GRACE_INTERVAL
-    s.run_while(lambda :s.t < nt)
+    s.run_seconds(pysyma.dncp.HNCP.GRACE_INTERVAL)
 
     n1l = list(n1.h.valid_sorted_nodes())
     n2l = list(n2.h.valid_sorted_nodes())
@@ -229,5 +251,5 @@ if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.DEBUG)
     #test_hncp_two()
-    test_hncp_tube()
+    test_hncp_ka()
 

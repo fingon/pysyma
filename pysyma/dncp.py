@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Mon Jul 20 18:31:53 2015 mstenber
-# Edit time:     286 min
+# Last modified: Tue Jul 21 08:31:57 2015 mstenber
+# Edit time:     307 min
 #
 """
 
@@ -44,6 +44,7 @@ _logger = logging.getLogger(__name__)
 _debug = _logger.debug
 
 class Subscriber:
+    def event(self, n, *a, **kwa): return getattr(self, n)(*a, **kwa)
     def republish(self): pass
     def local_tlv_event(self, tlv, event): pass
     def tlv_event(self, n, tlv, event): pass
@@ -96,7 +97,7 @@ class Endpoint:
     def ext_ready(self, enabled):
         if enabled == self.enabled: return
         self.enabled = enabled
-        self.dncp._dispatch('ep_event', self, enabled and EPEvent.add or EPEvent.remove)
+        self.dncp.event('ep_event', self, enabled and EPEvent.add or EPEvent.remove)
 
 # local_tlv = must publish new local node (possibly)
 # local_always = local timestamp/update# is historic -> MUST publish new
@@ -130,12 +131,11 @@ class Node:
         s1 = set(self.tlvs)
         s2 = set(tlvs)
         for t1 in s1.difference(s2):
-            self.dncp._dispatch('tlv_event', self, t1, TLVEvent.remove)
+            self.dncp.event('tlv_event', self, t1, TLVEvent.add)
         for t2 in s2.difference(s1):
-            self.dncp._dispatch('tlv_event', self, t2, TLVEvent.add)
+            self.dncp.event('tlv_event', self, t2, TLVEvent.remove)
         self.tlvs = tlvs
-        self.dncp.dirty.add(Dirty.network_hash)
-        self.dncp.dirty.add(Dirty.graph)
+        self.dncp.schedule_immediate_dirty(Dirty.network_hash, Dirty.graph)
         self.node_hash_dirty = True
     def _prune_traverse(self):
         # Already traversed this prune?
@@ -180,7 +180,7 @@ class Node:
             else:
                 self.collided = True
                 self.seqno = ns.seqno + 1000
-            self.dncp.schedule_immediate_and_mark_dirty(Dirty.local_always)
+            self.dncp.schedule_immediate_dirty(Dirty.local_always)
             return
         tlvs = decode_tlvs(ns.body)
         if tlvs is None:
@@ -210,10 +210,12 @@ class DNCP:
         self.dirty = set()
         self.subscribers = []
         self.sys = sys
-        self.schedule_immediate_and_mark_dirty()
-    def _dispatch(self, n, *args):
+        self.schedule_immediate_dirty()
+    def add_subscriber(self, s):
+        self.subscribers.append(s)
+    def event(self, n, *a, **kw):
         for s in self.subscribers:
-            getattr(s, n)(*args)
+            s.event(n, *a, **kw)
     def find_ep_by_id(self, ep_id):
         return self.id2ep.get(ep_id, None)
     def find_or_create_ep_by_name(self, name):
@@ -232,22 +234,22 @@ class DNCP:
         _debug('%s set_node_id %s', self, node_id)
         if self.own_node is not None:
             self.remove_node(self.own_node)
-        self.schedule_immediate_and_mark_dirty(Dirty.local_tlv)
+        self.schedule_immediate_dirty(Dirty.local_tlv)
         return self.add_node(Node(dncp=self, node_id=node_id), own=True)
     def add_node(self, n, own=False):
         _debug('%s add_node %s', self, n)
         if own:
             self.own_node = n
         self.id2node[n.node_id] = n
-        self._dispatch('node_event', n, NodeEvent.add)
-        self.schedule_immediate_and_mark_dirty(Dirty.graph)
+        self.event('node_event', n, NodeEvent.add)
+        self.schedule_immediate_dirty(Dirty.graph)
         bisect.insort(self.node_ids, n.node_id)
         return n
     def remove_node(self, n):
         _debug('%s remove_node %s', self, n)
         del self.id2node[n.node_id]
-        self._dispatch('node_event', n, NodeEvent.remove)
-        self.schedule_immediate_and_mark_dirty(Dirty.graph)
+        self.event('node_event', n, NodeEvent.remove)
+        self.schedule_immediate_dirty(Dirty.graph)
         self.node_ids.remove(n.node_id)
     def add_tlv(self, x):
         try:
@@ -257,19 +259,19 @@ class DNCP:
             pass
         _debug('%s add_tlv %s', self, x)
         bisect.insort(self.tlvs, x)
-        self._dispatch('local_tlv_event', x, TLVEvent.add)
-        self.schedule_immediate_and_mark_dirty(Dirty.local_tlv)
+        self.event('local_tlv_event', x, TLVEvent.add)
+        self.schedule_immediate_dirty(Dirty.local_tlv)
         return x
     def remove_tlv(self, x):
         _debug('%s remove_tlv %s', self, x)
         self.tlvs.remove(x)
-        self._dispatch('local_tlv_event', x, TLVEvent.remove)
-        self.schedule_immediate_and_mark_dirty(Dirty.local_tlv)
-    def schedule_immediate_and_mark_dirty(self, *args):
+        self.event('local_tlv_event', x, TLVEvent.remove)
+        self.schedule_immediate_dirty(Dirty.local_tlv)
+    def schedule_immediate_dirty(self, *args):
         for k in args:
             self.dirty.add(k)
         if self.scheduled_immediate: return
-        _debug('%s schedule_immediate_and_mark_dirty %s', self, args)
+        _debug('%s schedule_immediate_dirty %s', self, args)
         self.scheduled_immediate = True
         self.sys.schedule(0, self._run)
     def enabled_eps(self):
@@ -296,13 +298,22 @@ class DNCP:
         for node in pending_remove:
             self.remove_node(node)
     def _prune_neighbors(self):
+        _debug('_prune_neighbors')
         now = self.sys.time()
         for ntlv in list(self.own_node._get_tlv_instances(Neighbor)):
-            # TBD: Handle keep-alive TLV
-            dead_interval = self.KEEPALIVE_INTERVAL * self.KEEPALIVE_MULTIPLIER
-            if (ntlv.last_contact + dead_interval) < now:
+            n = self.id2node.get(ntlv.n_node_id)
+            ka_interval = self.KEEPALIVE_INTERVAL
+            if n:
+                ka_tlvs = list([t for t in n._get_tlv_instances(KAInterval) if t.ep_id == ntlv.ep_id or not t.ep_id])
+                if ka_tlvs: ka_interval = ka_tlvs[-1].interval / 1000.0
+                _debug('ka_tlvs for %s: %s', n, ka_tlvs)
+            dead_interval = ka_interval * self.KEEPALIVE_MULTIPLIER
+            ttl = (ntlv.last_contact + dead_interval) - now
+            if ttl < 0:
                 self.remove_tlv(ntlv)
+            _debug(' %s ttl %s', ntlv, ttl)
     def _run(self):
+        _debug('%s _run', self)
         self.scheduled_immediate = False
         now = self.sys.time()
         next = now + 60 # by default we run every 60 seconds, no matter what
@@ -341,8 +352,7 @@ class DNCP:
         self.dirty.add(Dirty.network_hash)
     def _heard(self, ep, src, dst, eptlv):
         # don't add self as neighbor, ever
-        if eptlv.node_id == self.own_node.node_id:
-            return
+        if eptlv.node_id == self.own_node.node_id: return
         ftlv = Neighbor(n_node_id=eptlv.node_id,
                         n_ep_id=eptlv.ep_id,
                         ep_id=ep.ep_id)

@@ -9,7 +9,7 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sat Jun 13 12:05:01 2015 mstenber
-# Last modified: Mon Jul 20 18:22:51 2015 mstenber
+# Last modified: Mon Jul 20 18:41:26 2015 mstenber
 # Edit time:     44 min
 #
 """
@@ -150,9 +150,12 @@ class Neighbor(TLV):
     format = TLV.format + '4sII'
     keys = TLV.keys[:] + ['n_node_id', 'n_ep_id', 'ep_id']
 
-# TBD: KA Interval TLV 9
+class KAInterval(TLV):
+    t = 9
+    format = TLV.format + 'II'
+    keys = TLV.keys[:] + ['ep_id', 'interval']
 
-_tlvlist = [ReqNetState, ReqNodeState, NodeEP, NetState, NodeState, Neighbor]
+_tlvlist = [ReqNetState, ReqNodeState, NodeEP, NetState, NodeState, Neighbor, KAInterval]
 _tlvs = dict([(t.t, t) for t in _tlvlist])
 
 def decode_tlvs(x):
