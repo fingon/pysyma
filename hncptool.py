@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Tue Jul 21 13:07:01 2015 mstenber
-# Last modified: Tue Jul 21 16:15:15 2015 mstenber
-# Edit time:     17 min
+# Last modified: Tue Jul 21 23:10:14 2015 mstenber
+# Edit time:     32 min
 #
 """
 
@@ -117,12 +117,22 @@ class LinuxSystemInterface:
         s = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         s.bind(('', HNCP_PORT))
         s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_LOOP, False)
+        IPV6_RECVPKTINFO = 61 # OS X
+        IPV6_RECVPKTINFO = 49 # Linux
+        s.setsockopt(socket.IPPROTO_IPV6, IPV6_RECVPKTINFO, True)
         def _f():
-            data, addr = s.recvfrom(2**16)
+            data, ancdata, flags, addr = s.recvmsg(2**16, 2**10)
+            assert len(ancdata) == 1
+            cmsg_level, cmsg_type, cmsg_data = ancdata[0]
+            dst = ipaddress.ip_address(cmsg_data[:16])
+            if dst.is_multicast:
+                dst = None
+            else:
+                dst = dst.compressed
             ads, ifname = addr[0].split('%')
             a = ipaddress.ip_address(ads)
             ep = hncp.find_or_create_ep_by_name(ifname)
-            hncp.ext_received(ep, a, None, decode_tlvs(data))
+            hncp.ext_received(ep, a, dst, decode_tlvs(data))
         sys.add_reader(s, _f)
         for ifname in iflist:
             ep = hncp.find_or_create_ep_by_name(ifname)
@@ -149,10 +159,20 @@ if __name__ == '__main__':
         import logging
         logging.basicConfig(level=logging.DEBUG)
     sys.setup_hncp(hncp, args.ifname)
+    result = [False]
     def _done():
         sys.running = False
     class HNCPSubscriber(Subscriber):
         def network_consistent(self, c):
-            if c: _done()
+            if c:
+                sys.running = False
+                result[0] = True
+    hncp.add_subscriber(HNCPSubscriber())
     sys.call_later(args.timeout, _done)
     sys.loop()
+    assert result[0]
+    for n in hncp.valid_sorted_nodes():
+        print(n)
+        for t in n.tlvs:
+            print(' ', t)
+        print
