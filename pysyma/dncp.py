@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Tue Jul 21 10:42:33 2015 mstenber
-# Edit time:     345 min
+# Last modified: Tue Jul 21 10:52:08 2015 mstenber
+# Edit time:     352 min
 #
 """
 
@@ -384,6 +384,8 @@ class DNCP:
         for ntlv in self.own_node._get_tlv_instances(Neighbor):
             if ftlv == ntlv:
                 return ntlv
+        if dst is None:
+            return
         ftlv.last_contact = self.sys.time()
         if ep.per_peer_ka:
             def _send_net_state():
@@ -399,13 +401,12 @@ class DNCP:
         now = self.sys.time()
         nep = None
         assert src is not None
+        want_rns = False
         for t in l:
             if isinstance(t, NodeEP):
-                if dst is not None:
-                    # unicast
-                    ne = self._heard(ep, src, dst, t)
-                else:
-                    nep = t
+                ne = self._heard(ep, src, dst, t)
+                if dst is None and ne is None:
+                    want_rns = True
             elif isinstance(t, ReqNetState):
                 ep.send_net_state(src=dst, dst=src)
                 if ne and ep.per_peer_ka:
@@ -418,16 +419,10 @@ class DNCP:
                     _debug(' ignoring reqnodestate %s, not up to date', t)
             elif isinstance(t, NetState):
                 if t.hash == self.network_hash:
-                    if nep:
-                        ne = self._heard(ep, src, dst, nep)
                     if ne:
                         ne.last_contact = now
                 else:
-                    # Rate limit sending
-                    if (self.last_rns + self.TRICKLE_IMIN) >= now:
-                        continue
-                    self.last_rns = now
-                    self.sys.send(ep, dst, src, [ReqNetState()])
+                    want_rns = True
             elif isinstance(t, NodeState):
                 if self.find_or_create_node_by_id(t.node_id)._update_from_ns(t):
                     self.sys.send(ep, dst, src, [ReqNodeState(node_id=t.node_id)])
@@ -435,6 +430,9 @@ class DNCP:
                 _error('unknown top-level TLV: %s', t)
         if dst and ne:
             ne.last_contact = now
+        if want_rns and (self.last_rns + self.TRICKLE_IMIN) < now:
+            self.last_rns = now
+            self.sys.send(ep, dst, src, [ReqNetState()])
 
     def profile_collision(self):
         raise NotImplementedError # child responsibility
