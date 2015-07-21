@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Tue Jul 21 10:54:39 2015 mstenber
-# Edit time:     353 min
+# Last modified: Tue Jul 21 13:41:51 2015 mstenber
+# Edit time:     365 min
 #
 """
 
@@ -45,12 +45,20 @@ _debug = _logger.debug
 
 class Subscriber:
     def event(self, n, *a, **kwa): return getattr(self, n)(*a, **kwa)
+
+    # Similar to hnetd
     def republish(self): pass
     def local_tlv_event(self, tlv, event): pass
     def tlv_event(self, n, tlv, event): pass
     def node_event(self, n, event): pass
     def ep_event(self, ep, event): pass
     # msg reception callback omitted
+
+    # Python specific
+
+    # Convenience callback to identify when we're consistent with
+    # someone _on the link_.
+    def network_consistent(self, is_consistent): pass
 
 class Trickle:
     def __init__(self, **kwargs):
@@ -97,13 +105,11 @@ class Endpoint:
         nid = binascii.b2a_hex(nid)
         return '<Endpoint %s[%d]@/%s>' % (self.name, self.ep_id, nid)
     def send_net_state(self, src=None, dst=None):
-        l = [NodeEP(node_id=self.dncp.own_node.node_id,
-                    ep_id=self.ep_id),
-             NetState(hash=self.dncp.network_hash)]
+        l = [NetState(hash=self.dncp.network_hash)]
         if dst:
             for n in self.dncp.valid_sorted_nodes():
                 l.append(n._get_ns(short=True))
-        self.dncp.sys.send(self, src, dst, l)
+        self.dncp.ep_send(self, src, dst, l)
     def _run(self):
         _debug('%s _run', self)
         assert self.enabled
@@ -225,6 +231,7 @@ class DNCP:
     network_hash = b''
     last_prune = 0
     last_rns = 0 # last request node state sent
+    network_consistent = None
     def __init__(self, sys):
         self.name2ep = {}
         self.id2ep = {}
@@ -417,30 +424,37 @@ class DNCP:
             elif isinstance(t, ReqNodeState):
                 n = self.id2node.get(t.node_id)
                 if n and n.last_reachable == self.last_prune:
-                    self.sys.send(ep, dst, src, [n._get_ns(short=False)])
+                    self.ep_send(ep, dst, src, [n._get_ns(short=False)])
                 else:
                     _debug(' ignoring reqnodestate %s, not up to date', t)
             elif isinstance(t, NetState):
-                if t.hash == self.network_hash:
+                is_consistent = t.hash == self.network_hash
+                if self.network_consistent is not is_consistent:
+                    self.network_consistent = is_consistent
+                    self.event('network_consistent', is_consistent)
+                if is_consistent:
                     if ne:
                         ne.last_contact = now
                 else:
                     want_rns = True
             elif isinstance(t, NodeState):
                 if self.find_or_create_node_by_id(t.node_id)._update_from_ns(t):
-                    self.sys.send(ep, dst, src, [ReqNodeState(node_id=t.node_id)])
+                    self.ep_send(ep, dst, src, [ReqNodeState(node_id=t.node_id)])
             else:
                 _error('unknown top-level TLV: %s', t)
         if dst and ne:
             ne.last_contact = now
         if want_rns and (self.last_rns + self.TRICKLE_IMIN) < now:
             self.last_rns = now
-            self.sys.send(ep, dst, src, [ReqNetState()])
+            self.ep_send(ep, dst, src, [ReqNetState()])
 
     def profile_collision(self):
         raise NotImplementedError # child responsibility
     def profile_hash(self, h):
         raise NotImplementedError # child responsibility
+    def ep_send(self, ep, src, dst, l):
+        l[0:0] = [NodeEP(node_id=self.own_node.node_id, ep_id=ep.ep_id)]
+        self.sys.send(ep, src, dst, l)
 
 import hashlib
 

@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sun Jul 19 09:14:49 2015 mstenber
-# Last modified: Tue Jul 21 10:40:53 2015 mstenber
-# Edit time:     132 min
+# Last modified: Tue Jul 21 13:44:41 2015 mstenber
+# Edit time:     134 min
 #
 """
 
@@ -48,14 +48,8 @@ class DummyNode(pysyma.dncp.Subscriber):
         self.events = []
         self.h = pysyma.dncp.HNCP(self)
         self.h.add_subscriber(self)
-    def republish(self):
-        self.events.append(EVENT_REPUBLISH)
     def event(self, n, *a, **kwa):
         self.events.append((n, a, kwa))
-    def tlv_event(self, n, tlv, event): pass
-    def node_event(self, n, event): pass
-    def ep_event(self, ep, event): pass
-
     def schedule(self, dt, cb, *a):
         if dt < MINIMUN_TIMEOUT: dt = MINIMUN_TIMEOUT
         _debug('%s schedule +%s %s(%s)' % (self, dt, cb, a))
@@ -246,7 +240,8 @@ def test_hncp_two():
     assert n1.events
     n1.events = []
     s.run_seconds(1234)
-    assert not n1.events
+    interesting_events = list([x for x in n1.events if x[0] not in 'network_consistent'])
+    assert not interesting_events
 
     s.set_connected(e1, e2, connected=False)
     if LOOP_SELF:
