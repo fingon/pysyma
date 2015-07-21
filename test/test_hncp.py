@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sun Jul 19 09:14:49 2015 mstenber
-# Last modified: Tue Jul 21 16:33:49 2015 mstenber
-# Edit time:     142 min
+# Last modified: Tue Jul 21 23:19:13 2015 mstenber
+# Edit time:     146 min
 #
 """
 
@@ -113,11 +113,7 @@ class DummySystem:
         if not bidir:
             return
         self.set_connected(e2, e1, connected=connected, bidir=False)
-    def is_converged(self):
-        dirty_nodes = list([n for n in self.nodes if n.h.dirty])
-        if dirty_nodes:
-            _debug('is_converged: not, dirty nodes %s', dirty_nodes)
-            return False
+    def is_converged_rw(self):
         count_nodes = set([len(n.h.id2node) for n in self.nodes if len(n.h.id2node)])
         if set([len(self.nodes)]) != count_nodes:
             _debug('is_converged: not, wrong counts in general, %s', count_nodes)
@@ -126,11 +122,19 @@ class DummySystem:
         if set([len(self.nodes)]) != count_nodes:
             _debug('is_converged: not, wrong counts in reachable, %s', count_nodes)
             return False
+        return True
+    def is_converged_ro(self):
+        dirty_nodes = list([n for n in self.nodes if n.h.dirty])
+        if dirty_nodes:
+            _debug('is_converged: not, dirty nodes %s', dirty_nodes)
+            return False
         hashes = set([binascii.b2a_hex(n.h.get_network_hash()) for n in self.nodes])
         if len(hashes) != 1:
             _debug('is_converged: not 1 hash? %s', hashes)
             return False
         return True
+    def is_converged(self):
+        return self.is_converged_ro() and self.is_converged_rw()
     def run_seconds(self, s):
         et = self.t + s
         self.run_until(lambda :self.next_time() > et)
@@ -187,6 +191,12 @@ def test_hncp_collision():
     for i in range(2, n):
         nodes[i].h.set_node_id(nodes[i%2].h.own_node.node_id)
     s.run_until(s.is_converged, time_ceiling=30) # much too 'big'
+
+def test_hncp_ro():
+    n = 2
+    s, nodes = _setup_tube(n)
+    nodes[0].h.read_only = True
+    s.run_until(s.is_converged_ro, time_ceiling=3)
 
 def test_hncp_ka():
     n = 2

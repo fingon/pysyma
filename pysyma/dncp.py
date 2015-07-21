@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Tue Jul 21 23:05:58 2015 mstenber
-# Edit time:     431 min
+# Last modified: Tue Jul 21 23:16:35 2015 mstenber
+# Edit time:     436 min
 #
 """
 
@@ -180,9 +180,12 @@ class Node:
         for t1 in self._get_tlv_instances(Neighbor):
             n = self.dncp.id2node.get(t1.n_node_id)
             if not n: continue
-            for t2 in n._get_tlv_instances(Neighbor):
-                if t1.ep_id == t2.n_ep_id and t1.n_ep_id == t2.ep_id and t2.n_node_id == self.node_id:
-                    yield t1, n
+            if self.is_self() and self.dncp.read_only:
+                yield None, n
+            else:
+                for t2 in n._get_tlv_instances(Neighbor):
+                    if t1.ep_id == t2.n_ep_id and t1.n_ep_id == t2.ep_id and t2.n_node_id == self.node_id:
+                        yield t1, n
     def _get_ns(self, short):
         assert self.seqno
         if not short and self.is_self():
@@ -235,7 +238,9 @@ class DNCP:
     last_rns = 0 # last request node state sent
     network_consistent = None
     network_hash = None
-    def __init__(self, sys):
+    read_only = False
+    def __init__(self, sys, **kwa):
+        self.__dict__.update(**kwa)
         self.name2ep = {}
         self.id2ep = {}
         self.id2node = {}
@@ -295,6 +300,7 @@ class DNCP:
             return self.tlvs[i]
         except ValueError:
             pass
+        assert isinstance(x, Neighbor) or not self.read_only
         _debug('%s add_tlv %s', self, x)
         bisect.insort(self.tlvs, x)
         self.event('local_tlv_event', x, TLVEvent.add)
@@ -319,6 +325,9 @@ class DNCP:
     def valid_sorted_nodes(self):
         for nid in self.node_ids:
             n = self.id2node[nid]
+            if n.is_self():
+                if self.read_only and not len(list([t for t in n.tlvs if not isinstance(t, Neighbor)])):
+                    continue
             if n.tlvs and n.last_reachable == self.last_prune:
                 yield n
     def _prune(self):
