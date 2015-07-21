@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Tue Jul 21 10:00:42 2015 mstenber
-# Edit time:     336 min
+# Last modified: Tue Jul 21 10:42:33 2015 mstenber
+# Edit time:     345 min
 #
 """
 
@@ -91,12 +91,12 @@ class Endpoint:
         self.per_peer_ka = kwargs['dncp'].PER_PEER_KA
         self.__dict__.update(**kwargs)
         if self.per_endpoint_ka:
-            self.trickle = Trickle(dncp=self.dncp, send=self._send_net_state)
+            self.trickle = Trickle(dncp=self.dncp, send=self.send_net_state)
     def __repr__(self):
         nid = self.dncp.own_node.node_id
         nid = binascii.b2a_hex(nid)
         return '<Endpoint %s[%d]@/%s>' % (self.name, self.ep_id, nid)
-    def _send_net_state(self, src=None, dst=None):
+    def send_net_state(self, src=None, dst=None):
         l = [NodeEP(node_id=self.dncp.own_node.node_id,
                     ep_id=self.ep_id),
              NetState(hash=self.dncp.network_hash)]
@@ -107,7 +107,10 @@ class Endpoint:
     def _run(self):
         _debug('%s _run', self)
         assert self.enabled
-        return min([x._run() for x in self.get_trickles()])
+        try:
+            return min([x._run() for x in self.get_trickles()])
+        except ValueError:
+            return None
     def get_trickles(self):
         if self.per_endpoint_ka:
             yield self.trickle
@@ -344,7 +347,7 @@ class DNCP:
         self._flush_local()
         self._calculate_network_hash()
         for ep in self.enabled_eps():
-            next = min(next, ep._run())
+            next = min(filter(None, [next, ep._run()]))
         self.dirty = set()
         if self.scheduled_immediate:
             return
@@ -384,7 +387,7 @@ class DNCP:
         ftlv.last_contact = self.sys.time()
         if ep.per_peer_ka:
             def _send_net_state():
-                ep._send_net_state(src=dst, dst=src)
+                ep.send_net_state(src=dst, dst=src)
                 ftlv.trickle.last_sent = self.sys.time()
             ftlv.trickle = Trickle(dncp=self, send=_send_net_state)
         return self.add_tlv(ftlv)
@@ -404,7 +407,7 @@ class DNCP:
                 else:
                     nep = t
             elif isinstance(t, ReqNetState):
-                ep._send_net_state(dst, src)
+                ep.send_net_state(src=dst, dst=src)
                 if ne and ep.per_peer_ka:
                     ne.trickle.last_sent = self.sys.time()
             elif isinstance(t, ReqNodeState):

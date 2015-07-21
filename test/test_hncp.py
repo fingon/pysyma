@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sun Jul 19 09:14:49 2015 mstenber
-# Last modified: Tue Jul 21 10:05:19 2015 mstenber
-# Edit time:     126 min
+# Last modified: Tue Jul 21 10:40:53 2015 mstenber
+# Edit time:     132 min
 #
 """
 
@@ -73,8 +73,8 @@ class DummyNode(pysyma.dncp.Subscriber):
             self.schedule(0.01, _fun)
     def time(self):
         return self.s.t
-    def ep(self, n):
-        o = self.h.find_or_create_ep_by_name(n)
+    def ep(self, n, **kwa):
+        o = self.h.find_or_create_ep_by_name(n, **kwa)
         if LOOP_SELF:
             self.s.set_connected(o, o) # always connect self
         o.ext_ready(True)
@@ -160,13 +160,22 @@ class DummySystem:
         _debug('set_time %s (+%s)' % (t, t - self.start_t))
         self.t = t
 
-def _setup_tube(n):
+def _setup_tube(n, ep_conf={}):
     s = DummySystem()
     nodes = list([s.add_node() for i in range(n)])
     for i in range(len(nodes)-1):
-        s.set_connected(nodes[i].ep('down'),
-                        nodes[i+1].ep('up'))
+        s.set_connected(nodes[i].ep('down', **ep_conf),
+                        nodes[i+1].ep('up', **ep_conf))
     return s, nodes
+
+def test_hncp_u():
+    n = 3
+    s, nodes = _setup_tube(n, ep_conf=dict(per_peer_ka=True,
+                                           per_endpoint_ka=False))
+    # Fire off initial peering
+    for i in range(len(nodes)-1):
+        nodes[i].ep('down').send_net_state(dst=nodes[i+1].ep('up'))
+    s.run_until(s.is_converged, time_ceiling=30) # much too 'big'
 
 def test_hncp_tube():
     s, nodes = _setup_tube(10)
