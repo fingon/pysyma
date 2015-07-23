@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Tue Jul 21 23:16:35 2015 mstenber
-# Edit time:     436 min
+# Last modified: Thu Jul 23 10:28:29 2015 mstenber
+# Edit time:     437 min
 #
 """
 
@@ -497,7 +497,8 @@ class DNCP:
     def profile_hash(self, h):
         raise NotImplementedError # child responsibility
     def ep_send(self, ep, src, dst, l):
-        l[0:0] = [NodeEP(node_id=self.own_node.node_id, ep_id=ep.ep_id)]
+        if not self.read_only:
+            l[0:0] = [NodeEP(node_id=self.own_node.node_id, ep_id=ep.ep_id)]
         _debug('%s ep_send %s->%s: %s', ep, src, dst, l)
         self.sys.send(ep, src, dst, l)
 
