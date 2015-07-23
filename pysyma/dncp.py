@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Thu Jul 23 12:29:51 2015 mstenber
-# Edit time:     446 min
+# Last modified: Thu Jul 23 14:22:42 2015 mstenber
+# Edit time:     455 min
 #
 """
 
@@ -138,8 +138,8 @@ class Node:
     tlvs = []
     seqno = 0
     origination_time = 0
-    _node_hash_dirty = True
-    _node_hash = b''
+    _node_data = None
+    _node_hash = None
     last_reachable = 0
     collided = False
     # dncp supplied by constructor always
@@ -149,11 +149,13 @@ class Node:
         return binascii.b2a_hex(self.node_id)
     def get_node_hash_hex(self):
         return binascii.b2a_hex(self.get_node_hash())
+    def get_node_data(self):
+        if self._node_data is None:
+            self._node_data = encode_tlvs(*self.tlvs)
+        return self._node_data
     def get_node_hash(self):
-        if self._node_hash_dirty:
-            data = encode_tlvs(*self.tlvs)
-            self._node_hash = self.dncp.profile_hash(data)
-            self._node_hash_dirty = False
+        if self._node_hash is None:
+            self._node_hash = self.dncp.profile_hash(self.get_node_data())
         return self._node_hash
     def is_self(self):
         return self.dncp.own_node is self
@@ -169,7 +171,8 @@ class Node:
         for t2 in s2.difference(s1):
             self.dncp.event('tlv_event', self, t2, TLVEvent.remove)
         self.dncp.schedule_immediate_dirty(Dirty.network_hash, Dirty.graph)
-        self._node_hash_dirty = True
+        self._node_data = None
+        self._node_hash = None
     def _prune_traverse(self):
         # Already traversed this prune?
         if self.last_reachable == self.dncp.last_prune:
@@ -199,7 +202,7 @@ class Node:
                          seqno=self.seqno,
                          age=int(1000 * (now-self.origination_time)),
                          hash=self.get_node_hash(),
-                         body=(not short and encode_tlvs(*self.tlvs) or b''))
+                         body=(not short and self.get_node_data() or b''))
     def _update_from_ns(self, ns):
         # Ignore if it's older
         if ns.seqno < self.seqno:
