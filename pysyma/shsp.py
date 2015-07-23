@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:32:17 2015 mstenber
-# Last modified: Thu Jul 23 14:21:18 2015 mstenber
-# Edit time:     29 min
+# Last modified: Thu Jul 23 14:43:40 2015 mstenber
+# Edit time:     31 min
 #
 """
 
@@ -56,7 +56,7 @@ class SHSP(dncp.HNCP):
     def __init__(self, *a, **kw):
         dncp.HNCP.__init__(self, *a, **kw)
         self.local_dict = {}
-    def get_dict(self, include_timestamp=False):
+    def get_dict(self, include_timestamp=False, printable_node=False):
         r = {}
         for n in self.valid_sorted_nodes():
             h = {}
@@ -64,12 +64,10 @@ class SHSP(dncp.HNCP):
                 k = t.json['k']
                 v = t.json['v']
                 ts = t.json['ts']
-                if include_timestamp:
-                    h[k] = [ts, v]
-                else:
-                    h[k] = v
+                h[k] = include_timestamp and [ts, v] or v
             if h:
-                r[n.get_node_hash_hex()] = h
+                if printable_node: n = n.get_node_hash_hex()
+                r[n] = h
         return r
     def update_dict(self, d):
         for k, v in d.items():

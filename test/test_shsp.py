@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:45:29 2015 mstenber
-# Last modified: Thu Jul 23 12:44:34 2015 mstenber
-# Edit time:     9 min
+# Last modified: Thu Jul 23 14:44:45 2015 mstenber
+# Edit time:     11 min
 #
 """
 
@@ -26,8 +26,10 @@ def test_shsp():
     d = {'foo': 1, 'bar': 'baz'}
     nodes[0].h.update_dict(d)
     s.run_until(s.is_converged, time_ceiling=3)
-    assert nodes[1].h.get_dict() != {}
-    assert nodes[1].h.get_dict() == nodes[0].h.get_dict()
+    d0 = nodes[0].h.get_dict(printable_node=True)
+    d1 = nodes[1].h.get_dict(printable_node=True)
+    assert d1 != {}
+    assert d0 == d1
 
     # Ensure spurious set is spurious
     nodes[0].h.update_dict(d)
@@ -36,8 +38,10 @@ def test_shsp():
     # And then clear it -> should propagate
     nodes[0].h.set_dict({})
     s.run_until(s.is_converged, time_ceiling=3)
-    assert nodes[1].h.get_dict() == nodes[0].h.get_dict()
-    assert nodes[1].h.get_dict() == {}
+    d0 = nodes[0].h.get_dict(printable_node=True)
+    d1 = nodes[1].h.get_dict(printable_node=True)
+    assert d1 == {}
+    assert d0 == d1
 
 if __name__ == '__main__':
     import logging
