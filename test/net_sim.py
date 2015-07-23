@@ -9,7 +9,7 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:41:04 2015 mstenber
-# Last modified: Thu Jul 23 11:43:55 2015 mstenber
+# Last modified: Thu Jul 23 11:54:08 2015 mstenber
 # Edit time:     1 min
 #
 """
@@ -22,7 +22,6 @@ import pysyma.dncp
 
 import collections
 import heapq
-import binascii
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -118,7 +117,7 @@ class DummySystem:
         if dirty_nodes:
             _debug('is_converged: not, dirty nodes %s', dirty_nodes)
             return False
-        hashes = set([binascii.b2a_hex(n.h.get_network_hash()) for n in self.nodes])
+        hashes = set([n.h.get_network_hash_hex() for n in self.nodes])
         if len(hashes) != 1:
             _debug('is_converged: not 1 hash? %s', hashes)
             return False

@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Thu Jul 23 10:28:29 2015 mstenber
-# Edit time:     437 min
+# Last modified: Thu Jul 23 12:29:51 2015 mstenber
+# Edit time:     446 min
 #
 """
 
@@ -145,6 +145,10 @@ class Node:
     # dncp supplied by constructor always
     def __init__(self, **kwargs):
         self.__dict__.update(**kwargs)
+    def get_node_id_hex(self):
+        return binascii.b2a_hex(self.node_id)
+    def get_node_hash_hex(self):
+        return binascii.b2a_hex(self.get_node_hash())
     def get_node_hash(self):
         if self._node_hash_dirty:
             data = encode_tlvs(*self.tlvs)
@@ -274,7 +278,7 @@ class DNCP:
         return self.id2node[node_id]
     # has highest id: omitted (needed only by PA)
     def set_node_id(self, node_id):
-        _debug('%s set_node_id %s', self, node_id)
+        _debug('%s set_node_id %s', self, binascii.b2a_hex(node_id))
         if self.own_node is not None:
             self.remove_node(self.own_node)
         self.schedule_immediate_dirty(Dirty.local_tlv)
@@ -356,7 +360,7 @@ class DNCP:
             if n:
                 ka_tlvs = list([t for t in n._get_tlv_instances(KAInterval) if t.ep_id == ntlv.ep_id or not t.ep_id])
                 if ka_tlvs: ka_interval = ka_tlvs[-1].interval / 1000.0
-                _debug('ka_tlvs for %s: %s', n, ka_tlvs)
+                #_debug('ka_tlvs for %s: %s', n, ka_tlvs)
             dead_interval = ka_interval * self.KEEPALIVE_MULTIPLIER
             ttl = (ntlv.last_contact + dead_interval) - now
             if ttl < 0:
@@ -394,8 +398,8 @@ class DNCP:
             _debug('%s _calculate_network_hash', self)
             l = list([(struct.pack('>I', n.seqno) + n.get_node_hash()) for n in self.valid_sorted_nodes()])
             for n in self.valid_sorted_nodes():
-                _debug(' %s %d %s', binascii.b2a_hex(n.node_id), n.seqno,
-                       binascii.b2a_hex(n.get_node_hash()))
+                _debug(' %s %d %s', n.get_node_id_hex(), n.seqno,
+                       n.get_node_hash_hex())
             if l:
                 data = functools.reduce(operator.add, l)
             else:
@@ -413,6 +417,8 @@ class DNCP:
         self._calculate_network_hash()
         assert len(self.network_hash) == self.HASH_LENGTH
         return self.network_hash
+    def get_network_hash_hex(self):
+        return binascii.b2a_hex(self.get_network_hash())
     def _flush_local(self):
         if not Dirty.local_tlv in self.dirty: return
         self.dirty.remove(Dirty.local_tlv)
@@ -501,6 +507,7 @@ class DNCP:
             l[0:0] = [NodeEP(node_id=self.own_node.node_id, ep_id=ep.ep_id)]
         _debug('%s ep_send %s->%s: %s', ep, src, dst, l)
         self.sys.send(ep, src, dst, l)
+
 
 import hashlib
 

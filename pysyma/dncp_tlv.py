@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sat Jun 13 12:05:01 2015 mstenber
-# Last modified: Tue Jul 21 14:01:27 2015 mstenber
-# Edit time:     46 min
+# Last modified: Thu Jul 23 12:37:32 2015 mstenber
+# Edit time:     54 min
 #
 """
 
@@ -155,8 +155,20 @@ class KAInterval(TLV):
     format = TLV.format + 'II'
     keys = TLV.keys[:] + ['ep_id', 'interval']
 
-_tlvlist = [ReqNetState, ReqNodeState, NodeEP, NetState, NodeState, Neighbor, KAInterval]
-_tlvs = dict([(t.t, t) for t in _tlvlist])
+_tlvlist = []
+_tlvs = {}
+
+def add_tlvs(*tlvs):
+    for tlv in tlvs:
+        _tlvlist.append(tlv)
+        _tlvs[tlv.t] = tlv
+
+add_tlvs(ReqNetState, ReqNodeState,
+         NodeEP,
+         NetState, NodeState,
+         Neighbor, KAInterval)
+
+
 
 def decode_tlvs(x):
     i = 0
