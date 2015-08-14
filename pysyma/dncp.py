@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Thu Jul 23 14:22:42 2015 mstenber
-# Edit time:     455 min
+# Last modified: Fri Aug 14 12:30:32 2015 mstenber
+# Edit time:     480 min
 #
 """
 
@@ -121,7 +121,7 @@ class Endpoint:
         if self.per_endpoint_ka:
             yield self.trickle
         if self.per_peer_ka:
-            for n in [tlv for tlv in self.dncp.tlvs if isinstance(tlv, Neighbor) and tlv.ep_id == self.ep_id]:
+            for n in [tlv for tlv in self.dncp.get_tlv_instances(Neighbor) if tlv.ep_id == self.ep_id]:
                 yield n.trickle
     def ext_ready(self, enabled):
         if enabled == self.enabled: return
@@ -134,8 +134,7 @@ class Endpoint:
 # network_hash = one of the node hashes may be dirty
 Dirty = enum.Enum('Dirty', 'graph network_hash local_tlv local_always')
 
-class Node:
-    tlvs = []
+class Node(TLVList):
     seqno = 0
     origination_time = 0
     _node_data = None
@@ -163,8 +162,8 @@ class Node:
         tlvs = list(tlvs)
         _debug('%s set_tlvs %s', self, tlvs)
         # Note: This could be done more efficiently. CBA.
-        s1 = set(self.tlvs)
-        s2 = set(tlvs)
+        s1 = set(self.tlvs or [])
+        s2 = set(tlvs or [])
         for t1 in s1.difference(s2):
             self.dncp.event('tlv_event', self, t1, TLVEvent.add)
         self.tlvs = tlvs
@@ -181,16 +180,14 @@ class Node:
         self.last_reachable = self.dncp.last_prune
         for ntlv, n in self._get_bidir_neighbors():
             n._prune_traverse()
-    def _get_tlv_instances(self, cl):
-        return [tlv for tlv in self.tlvs if isinstance(tlv, cl)]
     def _get_bidir_neighbors(self):
-        for t1 in self._get_tlv_instances(Neighbor):
+        for t1 in self.get_tlv_instances(Neighbor):
             n = self.dncp.id2node.get(t1.n_node_id)
             if not n: continue
             if self.is_self() and self.dncp.read_only:
                 yield None, n
             else:
-                for t2 in n._get_tlv_instances(Neighbor):
+                for t2 in n.get_tlv_instances(Neighbor):
                     if t1.ep_id == t2.n_ep_id and t1.n_ep_id == t2.ep_id and t2.n_node_id == self.node_id:
                         yield t1, n
     def _get_ns(self, short):
@@ -236,7 +233,7 @@ class Node:
         # paranoia starts here:
         assert self.get_node_hash() == ns.hash
 
-class DNCP:
+class DNCP(TLVList):
     # Subclass provides various upper case values
     own_node = None
     scheduled_immediate = False
@@ -253,7 +250,6 @@ class DNCP:
         self.id2node = {}
         self.node_ids = []
         self.first_free_ep_id = 1
-        self.tlvs = [] # local TLVs we want to publish
         self.dirty = set()
         self.dirty.add(Dirty.network_hash)
         self.subscribers = []
@@ -302,19 +298,19 @@ class DNCP:
         self.schedule_immediate_dirty(Dirty.graph)
         self.node_ids.remove(n.node_id)
     def add_tlv(self, x):
-        try:
-            i = self.tlvs.index(x)
-            return self.tlvs[i]
-        except ValueError:
-            pass
+        if self.tlvs is None: self.tlvs = []
+        ox = self.has_tlv(x)
+        if ox is not None: return ox
         assert isinstance(x, Neighbor) or not self.read_only
         _debug('%s add_tlv %s', self, x)
         bisect.insort(self.tlvs, x)
+        if isinstance(x, ContainerTLV): x.parent = self
         self.event('local_tlv_event', x, TLVEvent.add)
         self.schedule_immediate_dirty(Dirty.local_tlv)
         return x
     def remove_tlv(self, x):
         _debug('%s remove_tlv %s', self, x)
+        if isinstance(x, ContainerTLV): del x.parent
         self.tlvs.remove(x)
         self.event('local_tlv_event', x, TLVEvent.remove)
         self.schedule_immediate_dirty(Dirty.local_tlv)
@@ -333,7 +329,7 @@ class DNCP:
         for nid in self.node_ids:
             n = self.id2node[nid]
             if n.is_self():
-                if self.read_only and not len(list([t for t in n.tlvs if not isinstance(t, Neighbor)])):
+                if self.read_only and not len(list(n.get_tlv_matching(lambda t:not isinstance(t, Neighbor)))):
                     continue
             if n.tlvs and n.last_reachable == self.last_prune:
                 yield n
@@ -357,11 +353,11 @@ class DNCP:
     def _prune_neighbors(self):
         _debug('_prune_neighbors')
         now = self.sys.time()
-        for ntlv in list(self.own_node._get_tlv_instances(Neighbor)):
+        for ntlv in list(self.get_tlv_instances(Neighbor)):
             n = self.id2node.get(ntlv.n_node_id)
             ka_interval = self.KEEPALIVE_INTERVAL
             if n:
-                ka_tlvs = list([t for t in n._get_tlv_instances(KAInterval) if t.ep_id == ntlv.ep_id or not t.ep_id])
+                ka_tlvs = list([t for t in n.get_tlv_instances(KAInterval) if t.ep_id == ntlv.ep_id or not t.ep_id])
                 if ka_tlvs: ka_interval = ka_tlvs[-1].interval / 1000.0
                 #_debug('ka_tlvs for %s: %s', n, ka_tlvs)
             dead_interval = ka_interval * self.KEEPALIVE_MULTIPLIER
@@ -427,13 +423,21 @@ class DNCP:
         self.dirty.remove(Dirty.local_tlv)
         if self.tlvs == self.own_node.tlvs:
             if not Dirty.local_always in self.dirty:
+                _debug('%s _flush_local found nothing to flush', self)
                 return
         try:
             self.dirty.remove(Dirty.local_always)
         except KeyError:
             pass
         self.event('republish')
-        self.own_node.set_tlvs(self.tlvs and self.tlvs[:] or [])
+        # To be sure nested dependencies are handled fine, we encode +
+        # decode it right here..
+        nl = []
+        if self.tlvs:
+            b = encode_tlvs(*self.tlvs)
+            nl = list(decode_tlvs(b))
+            assert nl
+        self.own_node.set_tlvs(nl)
         self.own_node.seqno += 1
         self.own_node.origination_time = self.sys.time()
         self.schedule_immediate_dirty(Dirty.network_hash)
@@ -443,7 +447,7 @@ class DNCP:
         ftlv = Neighbor(n_node_id=eptlv.node_id,
                         n_ep_id=eptlv.ep_id,
                         ep_id=ep.ep_id)
-        for ntlv in self.own_node._get_tlv_instances(Neighbor):
+        for ntlv in self.get_tlv_instances(Neighbor):
             if ftlv == ntlv:
                 return ntlv
         if dst is None:

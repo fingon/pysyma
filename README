@@ -45,6 +45,11 @@ transporting binaries; DNCP basic TLV encoding has too small length for our
 purposes.. lose-lose? :p perhaps 1 byte type + 3 byte length would be a
 good compromise.
 
+*** nested encoding performance
+
+- currently, we do very brute forced handling of nested TLVs. probably
+  better choice would be not to do that..?
+
 ** 'Leafy' nodes
 
 *** may choose only to read state (once)

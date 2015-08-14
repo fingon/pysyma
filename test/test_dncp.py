@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 13:25:03 2015 mstenber
-# Last modified: Tue Jul 21 14:00:39 2015 mstenber
-# Edit time:     21 min
+# Last modified: Fri Aug 14 10:49:41 2015 mstenber
+# Edit time:     22 min
 #
 """
 
@@ -35,6 +35,7 @@ def test_blob():
 
 def test_tlv():
     test_material = [ReqNetState(),
+                     ReqNetState(tlvs=[PadBodyTLV(t=123)]),
                      PadBodyTLV(t=64),
                      PadBodyTLV(t=65, body=b'x'),
                      PadBodyTLV(t=66, body=b'xx'),

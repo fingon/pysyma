@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sat Jun 13 12:05:01 2015 mstenber
-# Last modified: Thu Jul 23 12:37:32 2015 mstenber
-# Edit time:     54 min
+# Last modified: Fri Aug 14 12:29:54 2015 mstenber
+# Edit time:     71 min
 #
 """
 
@@ -23,6 +23,7 @@ yet, find one to reuse.
 import struct
 import operator
 import functools
+import bisect
 
 RID_LEN = 8
 MTU_ISH = 1400 # random MTU we use for splitting TLVs when we send stuff
@@ -119,20 +120,85 @@ class PadBodyTLV(TLV):
         self.l = TLV.wire_size(self) + len(self.body) - TLV_SIZE
         return CStruct.encode(self) + self.body + bytearray([0] * self.pad_size())
 
-class ReqNetState(TLV):
+class TLVList:
+    """ Relatively abstract base class, which has idea of having
+    (sorted) 'tlvs' list of sub-TLVs, and either {add,remove} or set
+    functionality for it + convenience getter."""
+    tlvs = None
+    def get_tlv_matching(self, fun):
+        return [tlv for tlv in self.get_tlvs() if fun(tlv)]
+    def get_tlv_instances(self, cl):
+        return self.get_tlv_matching(lambda tlv:isinstance(tlv, cl))
+    def get_tlvs(self):
+        if not self.tlvs: return []
+        return self.tlvs
+    def has_tlv(self, x):
+        if not self.tlvs: return
+        try:
+            i = self.tlvs.index(x)
+            return self.tlvs[i]
+        except ValueError:
+            pass
+    def add_tlv(self, x):
+        raise NotImplementedError
+    def remove_tlv(self, x):
+        raise NotImplementedError
+    def set_tlvs(self, l):
+        raise NotImplementedError
+
+class ParentedTLVList(TLVList):
+    def add_tlv(self, x):
+        ox = self.has_tlv(x)
+        if ox is not None: return ox
+        if self.tlvs is None: self.tlvs = []
+        parent = self.parent
+        if parent is not None: parent.remove_tlv(self)
+        self.body = None
+        bisect.insort(self.tlvs, x)
+        if parent is not None: parent.add_tlv(self)
+    def remove_tlv(self, x):
+        parent = self.parent
+        if parent is not None: parent.remove_tlv(self)
+        self.tlvs.remove(x)
+        self.body = None
+        if parent is not None: parent.add_tlv(self)
+
+
+class ContainerTLV(PadBodyTLV, ParentedTLVList):
+    body = None
+    parent = None
+    arkeys = ['tlvs'] # we can ignore 'body', it's just impl. artifact
+    def encode(self):
+        if self.body is None:
+            self.body = encode_tlvs(*(self.tlvs or []))
+            self.body_encoded()
+        return PadBodyTLV.encode(self)
+    def decode_buffer(self, x, ofs=0):
+        PadBodyTLV.decode_buffer(self, x, ofs)
+        self.body_decoded()
+        self.tlvs = list(decode_tlvs(self.body))
+        if not self.tlvs:
+            del self.tlvs
+    def body_encoded(self):
+        pass
+    def body_decoded(self):
+        pass
+
+
+class ReqNetState(ContainerTLV):
     t = 1
 
-class ReqNodeState(TLV):
+class ReqNodeState(ContainerTLV):
     t = 2
     format = TLV.format + '4s'
     keys = TLV.keys[:] + ['node_id']
 
-class NodeEP(TLV):
+class NodeEP(ContainerTLV):
     t = 3
     format = TLV.format + '4sI'
     keys = TLV.keys[:] + ['node_id', 'ep_id']
 
-class NetState(TLV):
+class NetState(ContainerTLV):
     t = 4
     format = TLV.format + '8s'
     keys = TLV.keys[:] + ['hash']
@@ -142,15 +208,12 @@ class NodeState(PadBodyTLV):
     format = TLV.format + '4sII8s'
     keys = TLV.keys[:] + ['node_id', 'seqno', 'age', 'hash']
 
-# TBD Custom 6
-# TBD Fragment Count 7
-
-class Neighbor(TLV):
+class Neighbor(ContainerTLV):
     t = 8
     format = TLV.format + '4sII'
     keys = TLV.keys[:] + ['n_node_id', 'n_ep_id', 'ep_id']
 
-class KAInterval(TLV):
+class KAInterval(ContainerTLV):
     t = 9
     format = TLV.format + 'II'
     keys = TLV.keys[:] + ['ep_id', 'interval']
@@ -179,6 +242,6 @@ def decode_tlvs(x):
         i += tlv.wire_size()
 
 def encode_tlvs(*l):
-    assert l
+    if not l: return b''
     # TBD: Is there some cross-Python-version 'more efficient' syntax?
     return functools.reduce(operator.add, [x.encode() for x in l])
