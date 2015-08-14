@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:32:17 2015 mstenber
-# Last modified: Fri Aug 14 11:59:43 2015 mstenber
-# Edit time:     59 min
+# Last modified: Fri Aug 14 12:35:04 2015 mstenber
+# Edit time:     60 min
 #
 """
 
@@ -86,11 +86,13 @@ class SHSP(dncp.HNCP):
         if key is not None:
             self.at = self.add_tlv(SHSPAuth())
     def get_node_kv_tlvs(self, n):
-        for t in n.get_tlv_instances(SHSPKV):
-            yield t
-        for at in n.get_tlv_instances(SHSPAuth):
-            for t in at.get_tlv_instances(SHSPKV):
+        if self.at is None:
+            for t in n.get_tlv_instances(SHSPKV):
                 yield t
+        else:
+            for at in n.get_tlv_instances(SHSPAuth):
+                for t in at.get_tlv_instances(SHSPKV):
+                    yield t
     def get_dict(self, include_timestamp=False, printable_node=False):
         r = {}
         for n in self.valid_sorted_nodes():
