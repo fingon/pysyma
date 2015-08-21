@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:00:10 2015 mstenber
-# Last modified: Fri Aug 21 10:06:33 2015 mstenber
-# Edit time:     4 min
+# Last modified: Fri Aug 21 10:26:59 2015 mstenber
+# Edit time:     13 min
 #
 """
 
@@ -30,7 +30,7 @@ import sys
 import struct
 import select
 import ipaddress
-
+import os
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -66,8 +66,16 @@ class SystemInterface:
     def __init__(self):
         self.timeouts = []
         self.readers = {}
+        r, w = os.pipe()
+        r = os.fdopen(r, 'r')
+        w = os.fdopen(w, 'w')
+        self.pipe_r, self.pipe_w = r, w
+        def _nop():
+            self.pipe_r.read()
+        self.add_reader(self.pipe_r, _nop)
     def add_reader(self, s, cb):
         self.readers[s] = cb
+        self.pipe_w.write('x') # in case in separate thread
     def next(self):
         if not self.timeouts: return
         return min([x.t for x in self.timeouts])
@@ -81,6 +89,7 @@ class SystemInterface:
             # Just run them one by one as I CBA to track the cancel
             # dependencies :p
     def loop(self):
+        self.set_locked(True)
         self.running = True
         while True:
             self.poll()
@@ -89,13 +98,20 @@ class SystemInterface:
             if to < 0.01:
                 to = 0.01
             _debug('select %s %s', self.readers.keys(), to)
-            (rlist, wlist, xlist) = select.select(self.readers.keys(), [], [], to)
+            k = list(self.readers.keys())
+            self.set_locked(False)
+            (rlist, wlist, xlist) = select.select(k, [], [], to)
+            self.set_locked(True)
             _debug('readable %s', rlist)
             for fd in rlist:
                 self.readers[fd]()
+        self.set_locked(False)
+    def set_locked(self, locked):
+        pass
     def call_later(self, dt, cb, *a):
         o = Timeout(self, dt + self.time(), cb, a)
         self.timeouts.append(o)
+        self.pipe_w.write('x') # in case in separate thread
         return o
     schedule = call_later
     def send(self, ep, src, dst, tlvs):
