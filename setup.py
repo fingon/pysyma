@@ -9,7 +9,7 @@
 # Copyright (c) 2014 Markus Stenberg
 #
 # Created:       Tue Oct 14 10:46:31 2014 mstenber
-# Last modified: Fri Jun 12 13:26:41 2015 mstenber
+# Last modified: Fri Aug 21 11:10:43 2015 mstenber
 # Edit time:     1 min
 #
 """
@@ -30,6 +30,6 @@ setup(name=NAME,
       author = 'Markus Stenberg',
       author_email = 'fingon+%s@iki.fi' % NAME,
       packages = find_packages(),
-      install_requires=['enum34']
+      install_requires=['enum34', 'ipaddress']
       )
 
