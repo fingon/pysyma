@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:32:17 2015 mstenber
-# Last modified: Fri Aug 14 12:35:04 2015 mstenber
-# Edit time:     60 min
+# Last modified: Fri Aug 21 09:49:29 2015 mstenber
+# Edit time:     89 min
 #
 """
 
@@ -66,9 +66,15 @@ class SHSPAuth(ContainerTLV):
 
 add_tlvs(SHSPKV, SHSPAuth)
 
-class SHSP(dncp.HNCP):
+class SHSPSubscriber(dncp.Subscriber):
+    def dict_update_event(self, n, od, nd):
+        pass
+
+class SHSP(dncp.HNCP, SHSPSubscriber):
+    subscriber_class = SHSPSubscriber
     at = None
     def __init__(self, *a, **kw):
+        self.kv_dirty_nodes = set()
         key = None
         if 'key' in kw:
             key = kw.pop('key')
@@ -85,7 +91,37 @@ class SHSP(dncp.HNCP):
         self.local_dict = {}
         if key is not None:
             self.at = self.add_tlv(SHSPAuth())
+        self.add_subscriber(self)
+    def tlv_event(self, n, tlv, event):
+        if not isinstance(tlv, SHSPKV) and not isinstance(tlv, SHSPAuth):
+            return
+        self.node_kv_is_dirty(n)
+    def node_kv_is_dirty(self, n):
+        # This node is potentially dirty. Start the delayed update.
+        if not self.kv_dirty_nodes:
+            self.sys.schedule(0, self.handle_kv_dirty_nodes)
+        self.kv_dirty_nodes.add(n)
+    def handle_kv_dirty_nodes(self):
+        if not self.kv_dirty_nodes: return
+        nodes = set(self.valid_sorted_nodes())
+        dn = self.kv_dirty_nodes
+        _debug('handle_kv_dirty_nodes %s', dn)
+        self.kv_dirty_nodes = set()
+        for n in dn:
+            od = getattr(n, 'kv_d', {})
+            nd = {}
+            for t in self.get_node_kv_tlvs(n):
+                k = t.json['k']
+                v = t.json['v']
+                ts = t.json['ts']
+                nd[k] = [ts, v]
+            n.kv_d = nd
+            _debug(' %s: %s => %s', n, od, nd)
+            if nd != od:
+                self.event('dict_update_event', n, od, nd)
     def get_node_kv_tlvs(self, n):
+        if n is self.own_node:
+            self._flush_local()
         if self.at is None:
             for t in n.get_tlv_instances(SHSPKV):
                 yield t
@@ -94,16 +130,14 @@ class SHSP(dncp.HNCP):
                 for t in at.get_tlv_instances(SHSPKV):
                     yield t
     def get_dict(self, include_timestamp=False, printable_node=False):
+        self.handle_kv_dirty_nodes()
         r = {}
         for n in self.valid_sorted_nodes():
-            h = {}
-            for t in self.get_node_kv_tlvs(n):
-                k = t.json['k']
-                v = t.json['v']
-                ts = t.json['ts']
-                h[k] = include_timestamp and [ts, v] or v
+            h = getattr(n, 'kv_d', None)
             if h:
                 if printable_node: n = n.get_node_hash_hex()
+                if not include_timestamp:
+                    h = dict([(k, v) for (k, (ts, v)) in h.items()])
                 r[n] = h
         return r
     def update_dict(self, d):
@@ -122,6 +156,7 @@ class SHSP(dncp.HNCP):
             nt = SHSPKV(json=dict(ts=ts, k=k, v=v))
             tlv_container.add_tlv(nt)
             self.local_dict[k] = nt
+        self.kv_dirty_nodes.add(self.own_node)
     def set_dict(self, d):
         d = d.copy()
         for k in set(self.local_dict.keys()).difference(set(d.keys())):

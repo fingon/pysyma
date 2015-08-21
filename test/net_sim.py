@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:41:04 2015 mstenber
-# Last modified: Thu Jul 23 11:54:08 2015 mstenber
-# Edit time:     1 min
+# Last modified: Fri Aug 21 09:41:34 2015 mstenber
+# Edit time:     3 min
 #
 """
 
@@ -37,11 +37,12 @@ class DummyNode(pysyma.dncp.Subscriber):
         self.events = []
         self.h = s.proto(self)
         self.h.add_subscriber(self)
-    def event(self, n, *a, **kwa):
+    def handle_event(self, n, *a, **kwa):
+        _debug('%s handle_event %s %s %s', self, n, a, kwa)
         self.events.append((n, a, kwa))
     def schedule(self, dt, cb, *a):
         if dt < MINIMUN_TIMEOUT: dt = MINIMUN_TIMEOUT
-        _debug('%s schedule +%s %s(%s)' % (self, dt, cb, a))
+        _debug('%s schedule +%s %s(%s)', self, dt, cb, a)
         heapq.heappush(self.s.timeouts, (dt+self.s.t, self.s.tid, cb, a))
         self.s.tid += 1
     def send(self, ep, src, dst, tl):

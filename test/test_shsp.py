@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:45:29 2015 mstenber
-# Last modified: Fri Aug 14 11:28:10 2015 mstenber
-# Edit time:     12 min
+# Last modified: Fri Aug 21 09:51:01 2015 mstenber
+# Edit time:     14 min
 #
 """
 
@@ -21,12 +21,18 @@ Test code for SHSP
 from net_sim import setup_tube
 from pysyma.shsp import SHSP
 
+SHSP.subscriber_class = None # netsim will break otherwise
+
 def _test_shsp(key=None):
     s, nodes = setup_tube(2, proto=lambda k:SHSP(k, key=key))
     d = {'foo': 1, 'bar': 'baz'}
     nodes[0].h.update_dict(d)
-    s.run_until(s.is_converged, time_ceiling=3)
     d0 = nodes[0].h.get_dict(printable_node=True)
+    assert d0 != {}
+    s.run_until(s.is_converged, time_ceiling=3)
+    # Due to hash collisions, d0 might change, so re-get it here
+    d0 = nodes[0].h.get_dict(printable_node=True)
+    assert d0 != {}
     d1 = nodes[1].h.get_dict(printable_node=True)
     assert d1 != {}
     assert d0 == d1

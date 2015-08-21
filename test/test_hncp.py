@@ -9,7 +9,7 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sun Jul 19 09:14:49 2015 mstenber
-# Last modified: Thu Jul 23 11:44:26 2015 mstenber
+# Last modified: Fri Aug 21 09:40:03 2015 mstenber
 # Edit time:     149 min
 #
 """
@@ -121,7 +121,7 @@ def test_hncp_two():
     assert n1.events
     n1.events = []
     s.run_seconds(1234)
-    interesting_events = list([x for x in n1.events if x[0] not in 'network_consistent'])
+    interesting_events = list([x for x in n1.events if x[0] not in 'network_consistent_event'])
     assert not interesting_events
 
     s.set_connected(e1, e2, connected=False)

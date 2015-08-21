@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Fri Aug 14 12:30:32 2015 mstenber
-# Edit time:     480 min
+# Last modified: Fri Aug 21 09:39:01 2015 mstenber
+# Edit time:     488 min
 #
 """
 
@@ -44,10 +44,10 @@ _logger = logging.getLogger(__name__)
 _debug = _logger.debug
 
 class Subscriber:
-    def event(self, n, *a, **kwa): return getattr(self, n)(*a, **kwa)
+    def handle_event(self, n, *a, **kwa): return getattr(self, n)(*a, **kwa)
 
     # Similar to hnetd
-    def republish(self): pass
+    def republish_event(self): pass
     def local_tlv_event(self, tlv, event): pass
     def tlv_event(self, n, tlv, event): pass
     def node_event(self, n, event): pass
@@ -58,7 +58,7 @@ class Subscriber:
 
     # Convenience callback to identify when we're consistent with
     # someone _on the link_.
-    def network_consistent(self, is_consistent): pass
+    def network_consistent_event(self, is_consistent): pass
 
 class Trickle:
     def __init__(self, **kwargs):
@@ -243,6 +243,7 @@ class DNCP(TLVList):
     network_consistent = None
     network_hash = None
     read_only = False
+    subscriber_class = Subscriber
     def __init__(self, sys, **kwa):
         self.__dict__.update(**kwa)
         self.name2ep = {}
@@ -256,10 +257,11 @@ class DNCP(TLVList):
         self.sys = sys
         self.schedule_immediate_dirty()
     def add_subscriber(self, s):
+        assert not self.subscriber_class or isinstance(s, self.subscriber_class)
         self.subscribers.append(s)
     def event(self, n, *a, **kw):
         for s in self.subscribers:
-            s.event(n, *a, **kw)
+            s.handle_event(n, *a, **kw)
     def find_ep_by_id(self, ep_id):
         return self.id2ep.get(ep_id, None)
     def find_or_create_ep_by_name(self, name, **kw):
@@ -429,7 +431,7 @@ class DNCP(TLVList):
             self.dirty.remove(Dirty.local_always)
         except KeyError:
             pass
-        self.event('republish')
+        self.event('republish_event')
         # To be sure nested dependencies are handled fine, we encode +
         # decode it right here..
         nl = []
@@ -488,7 +490,7 @@ class DNCP(TLVList):
                 _debug('NetState is %s (%s)', is_consistent, ne)
                 if self.network_consistent is not is_consistent:
                     self.network_consistent = is_consistent
-                    self.event('network_consistent', is_consistent)
+                    self.event('network_consistent_event', is_consistent)
                 if is_consistent:
                     if ne:
                         ne.last_contact = now
