@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Fri Aug 21 09:39:01 2015 mstenber
-# Edit time:     488 min
+# Last modified: Fri Aug 21 10:51:25 2015 mstenber
+# Edit time:     492 min
 #
 """
 
@@ -233,6 +233,14 @@ class Node(TLVList):
         # paranoia starts here:
         assert self.get_node_hash() == ns.hash
 
+class SystemInterface:
+    def schedule(self, dt, cb):
+        raise NotImplementedError
+    def send(self, ep, src, dst, tlvs):
+        raise NotImplementedError
+    def time(self):
+        raise NotImplementedError
+
 class DNCP(TLVList):
     # Subclass provides various upper case values
     own_node = None
@@ -254,6 +262,7 @@ class DNCP(TLVList):
         self.dirty = set()
         self.dirty.add(Dirty.network_hash)
         self.subscribers = []
+        assert isinstance(sys, SystemInterface)
         self.sys = sys
         self.schedule_immediate_dirty()
     def add_subscriber(self, s):

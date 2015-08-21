@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:41:04 2015 mstenber
-# Last modified: Fri Aug 21 09:41:34 2015 mstenber
-# Edit time:     3 min
+# Last modified: Fri Aug 21 11:03:53 2015 mstenber
+# Edit time:     4 min
 #
 """
 
@@ -31,7 +31,7 @@ MINIMUN_TIMEOUT=0.01 # in seconds
 LOOP_SELF=True # do we want to sanity check
 LOOP_SELF=False
 
-class DummyNode(pysyma.dncp.Subscriber):
+class DummyNode(pysyma.dncp.Subscriber, pysyma.dncp.SystemInterface):
     def __init__(self, s):
         self.s = s
         self.events = []

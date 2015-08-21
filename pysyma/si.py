@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:00:10 2015 mstenber
-# Last modified: Fri Aug 21 10:26:59 2015 mstenber
-# Edit time:     13 min
+# Last modified: Fri Aug 21 11:03:21 2015 mstenber
+# Edit time:     25 min
 #
 """
 
@@ -22,6 +22,7 @@ transport.
 
 """
 
+from . import dncp
 from . import dncp_tlv
 
 import time
@@ -58,6 +59,51 @@ class Timeout:
         self.cb(*self.a)
         self.lsi.timeouts.remove(self)
         self.done = True
+
+
+class SystemInterfaceSocket(dncp.SystemInterface):
+    def __init__(self, s, si, iflist):
+        self.si = si
+        self.time = si.time
+        self.schedule = si.schedule
+        self.s = s
+        self.iflist = iflist
+        si.add_reader(self.s, self.handle_read)
+    def send(self, ep, src, dst, tlvs):
+        if dst is None:
+            dst = self.si.proto_group
+        else:
+            assert isinstance(dst, ipaddress.IPv6Address)
+            dst = dst.compressed
+        ifname = ep.name
+        ifindex = socket.if_nametoindex(ifname)
+        tlvs = list(tlvs)
+        b = dncp_tlv.encode_tlvs(*tlvs)
+        self.s.sendto(b, (dst, self.si.proto_port, 0, ifindex))
+    def handle_read(self):
+        data, ancdata, flags, addr = s.recvmsg(2**16, 2**10)
+        assert len(ancdata) == 1
+        cmsg_level, cmsg_type, cmsg_data = ancdata[0]
+        dst = ipaddress.ip_address(cmsg_data[:16])
+        if dst.is_multicast:
+            dst = None
+        else:
+            dst = dst.compressed
+        ads, ifname = addr[0].split('%')
+        a = ipaddress.ip_address(ads)
+        ep = self.dncp.find_or_create_ep_by_name(ifname)
+        self.dncp.ext_received(ep, a, dst, dncp_tlv.decode_tlvs(data))
+    def set_dncp(self, dncp):
+        self.dncp = dncp
+        addrinfo = socket.getaddrinfo(self.si.proto_group, None)[0]
+        group_bin = socket.inet_pton(addrinfo[0], addrinfo[4][0])
+        for ifname in self.iflist:
+            ep = dncp.find_or_create_ep_by_name(ifname)
+            ifindex = socket.if_nametoindex(ifname)
+            mreq = group_bin + struct.pack('@I', ifindex)
+            self.s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
+            ep.ext_ready(True)
+
 
 class SystemInterface:
     proto_group = None
@@ -106,30 +152,15 @@ class SystemInterface:
             for fd in rlist:
                 self.readers[fd]()
         self.set_locked(False)
-    def set_locked(self, locked):
-        pass
-    def call_later(self, dt, cb, *a):
+    def schedule(self, dt, cb, *a):
         o = Timeout(self, dt + self.time(), cb, a)
         self.timeouts.append(o)
         self.pipe_w.write('x') # in case in separate thread
         return o
-    schedule = call_later
-    def send(self, ep, src, dst, tlvs):
-        if dst is None:
-            dst = self.proto_group
-        else:
-            assert isinstance(dst, ipaddress.IPv6Address)
-            dst = dst.compressed
-        ifname = ep.name
-        ifindex = socket.if_nametoindex(ifname)
-        tlvs = list(tlvs)
-        b = dncp_tlv.encode_tlvs(*tlvs)
-        self.s.sendto(b, (dst, self.proto_port, 0, ifindex))
-    def setup_dncp(self, dncp, iflist):
-        addrinfo = socket.getaddrinfo(self.proto_group, None)[0]
-        group_bin = socket.inet_pton(addrinfo[0], addrinfo[4][0])
+    def create_socket(self, addr='', port=None, iflist=[]):
         s = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
-        s.bind(('', self.proto_port))
+        if port is None: port = self.proto_port
+        s.bind((addr, port))
         s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_LOOP, False)
         if sys.platform == 'darwin':
             IPV6_RECVPKTINFO = 61
@@ -138,27 +169,9 @@ class SystemInterface:
         else:
             raise NotImplementedError
         s.setsockopt(socket.IPPROTO_IPV6, IPV6_RECVPKTINFO, True)
-        def _f():
-            data, ancdata, flags, addr = s.recvmsg(2**16, 2**10)
-            assert len(ancdata) == 1
-            cmsg_level, cmsg_type, cmsg_data = ancdata[0]
-            dst = ipaddress.ip_address(cmsg_data[:16])
-            if dst.is_multicast:
-                dst = None
-            else:
-                dst = dst.compressed
-            ads, ifname = addr[0].split('%')
-            a = ipaddress.ip_address(ads)
-            ep = dncp.find_or_create_ep_by_name(ifname)
-            dncp.ext_received(ep, a, dst, dncp_tlv.decode_tlvs(data))
-        self.add_reader(s, _f)
-        for ifname in iflist:
-            ep = dncp.find_or_create_ep_by_name(ifname)
-            ifindex = socket.if_nametoindex(ifname)
-            mreq = group_bin + struct.pack('@I', ifindex)
-            s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
-            ep.ext_ready(True)
-        self.s = s
+        return SystemInterfaceSocket(s, self, iflist)
+    def set_locked(self, locked):
+        pass
 
 class HNCPSystemInterface(SystemInterface):
     proto_group = 'ff02::8808'
