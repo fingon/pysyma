@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Fri Aug 21 10:51:25 2015 mstenber
-# Edit time:     492 min
+# Last modified: Fri Aug 21 11:47:52 2015 mstenber
+# Edit time:     501 min
 #
 """
 
@@ -109,7 +109,16 @@ class Endpoint:
         if dst:
             for n in self.dncp.valid_sorted_nodes():
                 l.append(n._get_ns(short=True))
-        self.dncp.ep_send(self, src, dst, l)
+        self.send(src, dst, l)
+    def send(self, src, dst, l):
+        if not self.dncp.read_only:
+            l[0:0] = [NodeEP(node_id=self.dncp.own_node.node_id,
+                             ep_id=self.ep_id)]
+        _debug('%s send %s->%s: %s', self, src, dst, l)
+        self.sys_send(src, dst, l)
+    def sys_send(self, src, dst, l):
+        # By default, use 'global dispatch'. This may be overridden..
+        return self.dncp.sys.send(self, src, dst, l)
     def _run(self):
         _debug('%s _run', self)
         assert self.enabled
@@ -273,12 +282,14 @@ class DNCP(TLVList):
             s.handle_event(n, *a, **kw)
     def find_ep_by_id(self, ep_id):
         return self.id2ep.get(ep_id, None)
-    def find_or_create_ep_by_name(self, name, **kw):
-        if name not in self.name2ep:
-            ep = Endpoint(dncp=self, name=name, ep_id=self.first_free_ep_id, **kw)
-            self.first_free_ep_id += 1
-            self.name2ep[ep.name] = ep
-            self.id2ep[ep.ep_id] = ep
+    def find_ep_by_name(self, name):
+        return self.name2ep.get(name, None)
+    def create_ep(self, name, **kw):
+        assert not self.find_ep_by_name(name)
+        ep = Endpoint(dncp=self, name=name, ep_id=self.first_free_ep_id, **kw)
+        self.first_free_ep_id += 1
+        self.name2ep[ep.name] = ep
+        self.id2ep[ep.ep_id] = ep
         return self.name2ep[name]
     def find_or_create_node_by_id(self, node_id):
         if node_id not in self.id2node:
@@ -491,7 +502,7 @@ class DNCP(TLVList):
             elif isinstance(t, ReqNodeState):
                 n = self.id2node.get(t.node_id)
                 if n and n.last_reachable == self.last_prune:
-                    self.ep_send(ep, dst, src, [n._get_ns(short=False)])
+                    ep.send(dst, src, [n._get_ns(short=False)])
                 else:
                     _debug(' ignoring reqnodestate %s, not up to date', t)
             elif isinstance(t, NetState):
@@ -507,24 +518,19 @@ class DNCP(TLVList):
                     want_rns = True
             elif isinstance(t, NodeState):
                 if self.find_or_create_node_by_id(t.node_id)._update_from_ns(t):
-                    self.ep_send(ep, dst, src, [ReqNodeState(node_id=t.node_id)])
+                    ep.send(dst, src, [ReqNodeState(node_id=t.node_id)])
             else:
                 _error('unknown top-level TLV: %s', t)
         if dst and ne:
             ne.last_contact = now
         if want_rns and (self.last_rns + self.TRICKLE_IMIN) < now:
             self.last_rns = now
-            self.ep_send(ep, dst, src, [ReqNetState()])
+            ep.send(dst, src, [ReqNetState()])
 
     def profile_collision(self):
         raise NotImplementedError # child responsibility
     def profile_hash(self, h):
         raise NotImplementedError # child responsibility
-    def ep_send(self, ep, src, dst, l):
-        if not self.read_only:
-            l[0:0] = [NodeEP(node_id=self.own_node.node_id, ep_id=ep.ep_id)]
-        _debug('%s ep_send %s->%s: %s', ep, src, dst, l)
-        self.sys.send(ep, src, dst, l)
 
 
 import hashlib

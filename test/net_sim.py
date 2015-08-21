@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:41:04 2015 mstenber
-# Last modified: Fri Aug 21 11:03:53 2015 mstenber
-# Edit time:     4 min
+# Last modified: Fri Aug 21 11:46:27 2015 mstenber
+# Edit time:     7 min
 #
 """
 
@@ -58,7 +58,7 @@ class DummyNode(pysyma.dncp.Subscriber, pysyma.dncp.SystemInterface):
     def time(self):
         return self.s.t
     def ep(self, n, **kwa):
-        o = self.h.find_or_create_ep_by_name(n, **kwa)
+        o = self.h.find_ep_by_name(n) or self.h.create_ep(n, **kwa)
         if LOOP_SELF:
             self.s.set_connected(o, o) # always connect self
         o.ext_ready(True)

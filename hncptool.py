@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Tue Jul 21 13:07:01 2015 mstenber
-# Last modified: Fri Aug 21 11:00:45 2015 mstenber
-# Edit time:     47 min
+# Last modified: Fri Aug 21 12:21:09 2015 mstenber
+# Edit time:     49 min
 #
 """
 
@@ -38,23 +38,20 @@ if __name__ == '__main__':
                     help="Interfaces to listen on.")
     args = ap.parse_args()
     si = HNCPSystemInterface()
-    s = si.create_socket(iflist=args.ifname)
+    s = si.create_socket()
     hncp = HNCP(sys=s)
-    s.set_dncp(hncp)
+    s.set_dncp_multicast(hncp, args.ifname)
     if args.debug:
         import logging
         logging.basicConfig(level=logging.DEBUG)
     result = [False]
-    def _done():
-        si.running = False
     class HNCPSubscriber(Subscriber):
         def network_consistent_event(self, c):
             if c:
                 si.running = False
                 result[0] = True
     hncp.add_subscriber(HNCPSubscriber())
-    si.schedule(args.timeout, _done)
-    si.loop()
+    si.loop(max_duration=args.timeout)
     assert result[0]
     for n in hncp.valid_sorted_nodes():
         print(n)
