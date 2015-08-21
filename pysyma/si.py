@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:00:10 2015 mstenber
-# Last modified: Fri Aug 21 12:26:25 2015 mstenber
-# Edit time:     65 min
+# Last modified: Fri Aug 21 13:02:01 2015 mstenber
+# Edit time:     88 min
 #
 """
 
@@ -98,25 +98,29 @@ class SystemInterfaceSocket(dncp.SystemInterface):
         b = dncp_tlv.encode_tlvs(*list(tlvs))
         self.s.sendto(b, tuple(dst))
     def handle_read(self):
-        data, ancdata, flags, addr = self.s.recvmsg(2**16, 2**10)
-        assert len(ancdata) == 1
-        cmsg_level, cmsg_type, cmsg_data = ancdata[0]
-        dst = ipaddress.ip_address(cmsg_data[:16])
-        if dst.is_multicast:
-            dst = None
-        else:
-            dst = (dst.compressed, self.port)
+        try:
+            data, ancdata, flags, src = self.s.recvmsg(2**16, 2**10)
+            assert len(ancdata) == 1
+            cmsg_level, cmsg_type, cmsg_data = ancdata[0]
+            dst = ipaddress.ip_address(cmsg_data[:16])
+            if dst.is_multicast:
+                dst = None
+            else:
+                dst = (dst.compressed, self.port)
+        except AttributeError:
+            data, src = self.s.recvfrom(2**16)
+            dst = ('', self.port) # pretend it is unicast :p
         if self.ep_name is not None:
             ep = self.dncp.find_ep_by_name(self.ep_name)
         else:
-            l = addr[0].split('%')
+            l = src[0].split('%')
             if len(l) == 2:
                 ads, ifname = l
                 ep = self.dncp.find_ep_by_name(ifname)
             else:
-                ep = self.dncp.find_ep_by_name(repr(tuple(addr[:2])))
+                ep = self.dncp.find_ep_by_name(repr(tuple(src[:2])))
         if ep:
-            self.dncp.ext_received(ep, addr, dst, dncp_tlv.decode_tlvs(data))
+            self.dncp.ext_received(ep, src, dst, dncp_tlv.decode_tlvs(data))
     def set_dncp_multicast(self, dncp, iflist):
         assert self.mode == SystemInterfaceSocket.mode # default
         self.mode = SISocketMode.mc
