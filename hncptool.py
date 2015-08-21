@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Tue Jul 21 13:07:01 2015 mstenber
-# Last modified: Tue Jul 21 23:19:55 2015 mstenber
-# Edit time:     34 min
+# Last modified: Fri Aug 21 09:58:43 2015 mstenber
+# Edit time:     40 min
 #
 """
 
@@ -32,6 +32,7 @@ import ipaddress
 import struct
 import select
 import re
+import sys
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -117,8 +118,12 @@ class LinuxSystemInterface:
         s = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         s.bind(('', HNCP_PORT))
         s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_LOOP, False)
-        IPV6_RECVPKTINFO = 61 # OS X
-        IPV6_RECVPKTINFO = 49 # Linux
+        if sys.platform == 'darwin':
+            IPV6_RECVPKTINFO = 61
+        elif sys.platform.startswith('linux'):
+            IPV6_RECVPKTINFO = 49
+        else:
+            raise NotImplementedError
         s.setsockopt(socket.IPPROTO_IPV6, IPV6_RECVPKTINFO, True)
         def _f():
             data, ancdata, flags, addr = s.recvmsg(2**16, 2**10)
@@ -133,7 +138,7 @@ class LinuxSystemInterface:
             a = ipaddress.ip_address(ads)
             ep = hncp.find_or_create_ep_by_name(ifname)
             hncp.ext_received(ep, a, dst, decode_tlvs(data))
-        sys.add_reader(s, _f)
+        self.add_reader(s, _f)
         for ifname in iflist:
             ep = hncp.find_or_create_ep_by_name(ifname)
             ifindex = socket.if_nametoindex(ifname)
@@ -153,23 +158,23 @@ if __name__ == '__main__':
                     nargs='+',
                     help="Interfaces to listen on.")
     args = ap.parse_args()
-    sys = LinuxSystemInterface()
-    hncp = HNCP(sys=sys)
+    si = LinuxSystemInterface()
+    hncp = HNCP(sys=si)
     if args.debug:
         import logging
         logging.basicConfig(level=logging.DEBUG)
-    sys.setup_hncp(hncp, args.ifname)
+    si.setup_hncp(hncp, args.ifname)
     result = [False]
     def _done():
-        sys.running = False
+        si.running = False
     class HNCPSubscriber(Subscriber):
-        def network_consistent(self, c):
+        def network_consistent_event(self, c):
             if c:
-                sys.running = False
+                si.running = False
                 result[0] = True
     hncp.add_subscriber(HNCPSubscriber())
-    sys.call_later(args.timeout, _done)
-    sys.loop()
+    si.call_later(args.timeout, _done)
+    si.loop()
     assert result[0]
     for n in hncp.valid_sorted_nodes():
         print(n)
