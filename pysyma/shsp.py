@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:32:17 2015 mstenber
-# Last modified: Fri Aug 21 09:49:29 2015 mstenber
-# Edit time:     89 min
+# Last modified: Sat Aug 22 11:20:16 2015 mstenber
+# Edit time:     90 min
 #
 """
 
@@ -140,7 +140,7 @@ class SHSP(dncp.HNCP, SHSPSubscriber):
                     h = dict([(k, v) for (k, (ts, v)) in h.items()])
                 r[n] = h
         return r
-    def update_dict(self, d):
+    def update_dict(self, d, ts=None):
         _debug('%s update_dict %s', self, d)
         tlv_container = self.at or self
         for k, v in d.items():
@@ -152,14 +152,15 @@ class SHSP(dncp.HNCP, SHSPSubscriber):
             # 'None' value is magical - it clears keys
             if v is None:
                 continue
-            ts = int(self.sys.time())
+            ts = ts or self.sys.time()
+            ts = int(ts)
             nt = SHSPKV(json=dict(ts=ts, k=k, v=v))
             tlv_container.add_tlv(nt)
             self.local_dict[k] = nt
         self.kv_dirty_nodes.add(self.own_node)
-    def set_dict(self, d):
+    def set_dict(self, d, ts=None):
         d = d.copy()
         for k in set(self.local_dict.keys()).difference(set(d.keys())):
             d[k] = None
-        self.update_dict(d)
+        self.update_dict(d, ts=ts)
 
