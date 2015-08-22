@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:00:10 2015 mstenber
-# Last modified: Sat Aug 22 11:12:14 2015 mstenber
-# Edit time:     122 min
+# Last modified: Sat Aug 22 11:39:13 2015 mstenber
+# Edit time:     124 min
 #
 """
 
@@ -81,6 +81,8 @@ class SystemInterfaceSocket(dncp.SystemInterface):
         self.time = self.si.time
         self.schedule = self.si.schedule
         self.si.add_reader(self.s, self.handle_read)
+    def get_port(self):
+        return self.s.getsockname()[1]
     def send(self, ep, src, dst, tlvs):
         # These sockets should have specialized sys_send due to set_dncp_*
         raise NotImplementedError

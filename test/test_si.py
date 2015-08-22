@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:46:04 2015 mstenber
-# Last modified: Sat Aug 22 11:11:21 2015 mstenber
-# Edit time:     20 min
+# Last modified: Sat Aug 22 11:39:30 2015 mstenber
+# Edit time:     21 min
 #
 """
 
@@ -42,6 +42,7 @@ def _wait_in_sync(si, h, h2):
 def test_si():
     si = pysyma.si.HNCPSystemInterface()
     s1 = si.create_socket(port=0)
+    assert s1.get_port()
     s2 = si.create_socket(port=12346)
     h1 = HastyHNCP(sys=s1)
     h1.add_tlv(pysyma.dncp_tlv.PadBodyTLV(t=42, body=b'asd'))
