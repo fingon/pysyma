@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:00:10 2015 mstenber
-# Last modified: Fri Aug 21 13:02:01 2015 mstenber
-# Edit time:     88 min
+# Last modified: Sat Aug 22 10:26:49 2015 mstenber
+# Edit time:     104 min
 #
 """
 
@@ -91,10 +91,7 @@ class SystemInterfaceSocket(dncp.SystemInterface):
         if dst is None:
             dst = self.default_dst
             if dst is None: return
-        else:
-            assert isinstance(dst[0], ipaddress.IPv6Address)
-            dst[0] = dst.compressed
-        assert len(dst) == 2
+        assert len(dst) >= 2
         b = dncp_tlv.encode_tlvs(*list(tlvs))
         self.s.sendto(b, tuple(dst))
     def handle_read(self):
@@ -110,19 +107,27 @@ class SystemInterfaceSocket(dncp.SystemInterface):
         except AttributeError:
             data, src = self.s.recvfrom(2**16)
             dst = ('', self.port) # pretend it is unicast :p
-        if self.ep_name is not None:
-            ep = self.dncp.find_ep_by_name(self.ep_name)
+        _debug('%s handle_read %s=>%s: %d', self, src, dst, len(data))
+        l = src[0].split('%')
+        if len(l) == 2:
+            # Multicast
+            ads, ifname = l
+            ep = self.dncp.find_ep_by_name(ifname)
         else:
-            l = src[0].split('%')
-            if len(l) == 2:
-                ads, ifname = l
-                ep = self.dncp.find_ep_by_name(ifname)
-            else:
-                ep = self.dncp.find_ep_by_name(repr(tuple(src[:2])))
+            # Unicast-Connect
+            n = tuple(src[:2])
+            ep = self.dncp.find_ep_by_name(repr(n))
+        if ep is None and self.ep_name is not None:
+            # Unicast-Listen
+            ep = self.dncp.find_ep_by_name(self.ep_name)
         if ep:
             self.dncp.ext_received(ep, src, dst, dncp_tlv.decode_tlvs(data))
-    def set_dncp_multicast(self, dncp, iflist):
+        else:
+            _debug(' no endpoint found, ignoring')
+    def set_dncp_multicast(self, dncp, iflist=[], unicast_ep_name=None):
         assert self.mode == SystemInterfaceSocket.mode # default
+        if unicast_ep_name:
+            self.set_dncp_unicast_listen(dncp, ep_name=unicast_ep_name)
         self.mode = SISocketMode.mc
         self.dncp = dncp
         self.default_dst = (self.si.proto_group, self.si.proto_port)
@@ -223,7 +228,6 @@ class SystemInterface:
         s = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         if port is None: port = self.proto_port
         s.bind((addr, port))
-        assert port # TBD - determine port# if user wanted 'any'
         s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_LOOP, False)
         if sys.platform == 'darwin':
             IPV6_RECVPKTINFO = 61
