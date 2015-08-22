@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Fri Aug 21 11:47:52 2015 mstenber
-# Edit time:     501 min
+# Last modified: Sat Aug 22 10:25:15 2015 mstenber
+# Edit time:     502 min
 #
 """
 
@@ -278,6 +278,7 @@ class DNCP(TLVList):
         assert not self.subscriber_class or isinstance(s, self.subscriber_class)
         self.subscribers.append(s)
     def event(self, n, *a, **kw):
+        _debug('%s event %s %s %s', self, n, a, kw)
         for s in self.subscribers:
             s.handle_event(n, *a, **kw)
     def find_ep_by_id(self, ep_id):
