@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:00:10 2015 mstenber
-# Last modified: Sat Aug 22 10:51:09 2015 mstenber
-# Edit time:     119 min
+# Last modified: Sat Aug 22 11:12:14 2015 mstenber
+# Edit time:     122 min
 #
 """
 
@@ -191,6 +191,9 @@ class SystemInterface:
     def add_reader(self, s, cb):
         self.readers[s] = cb
         self.pipe_w.write('x') # in case in separate thread
+    def stop(self):
+        self.running = False
+        self.pipe_w.write('x') # in case in separate thread
     def next(self):
         if not self.timeouts: return
         return min([x.t for x in self.timeouts])
@@ -208,9 +211,7 @@ class SystemInterface:
         self.running = True
         to = None
         if max_duration is not None:
-            def _done():
-                self.running = False
-            to = self.schedule(max_duration, _done)
+            to = self.schedule(max_duration, self.stop)
         while True:
             self.poll()
             if not self.running: break

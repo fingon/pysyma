@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:46:04 2015 mstenber
-# Last modified: Sat Aug 22 10:38:45 2015 mstenber
-# Edit time:     19 min
+# Last modified: Sat Aug 22 11:11:21 2015 mstenber
+# Edit time:     20 min
 #
 """
 
@@ -33,7 +33,7 @@ def _wait_in_sync(si, h, h2):
         def network_consistent_event(self, c):
             if not c: return
             if h.get_network_hash() != h2.get_network_hash(): return
-            si.running = False
+            si.stop()
             result[0] = True
     h.add_subscriber(HNCPSubscriber())
     si.loop(max_duration=3)
