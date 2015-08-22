@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Sat Aug 22 10:25:15 2015 mstenber
-# Edit time:     502 min
+# Last modified: Sat Aug 22 12:01:57 2015 mstenber
+# Edit time:     503 min
 #
 """
 
@@ -174,10 +174,10 @@ class Node(TLVList):
         s1 = set(self.tlvs or [])
         s2 = set(tlvs or [])
         for t1 in s1.difference(s2):
-            self.dncp.event('tlv_event', self, t1, TLVEvent.add)
+            self.dncp.event('tlv_event', self, t1, TLVEvent.remove)
         self.tlvs = tlvs
         for t2 in s2.difference(s1):
-            self.dncp.event('tlv_event', self, t2, TLVEvent.remove)
+            self.dncp.event('tlv_event', self, t2, TLVEvent.add)
         self.dncp.schedule_immediate_dirty(Dirty.network_hash, Dirty.graph)
         self._node_data = None
         self._node_hash = None
