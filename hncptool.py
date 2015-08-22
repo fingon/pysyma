@@ -9,7 +9,7 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Tue Jul 21 13:07:01 2015 mstenber
-# Last modified: Sat Aug 22 10:54:12 2015 mstenber
+# Last modified: Sat Aug 22 10:54:51 2015 mstenber
 # Edit time:     53 min
 #
 """
@@ -38,7 +38,7 @@ if __name__ == '__main__':
                     help="Interfaces to listen on.")
     args = ap.parse_args()
     si = HNCPSystemInterface()
-    hncp = si.create_dncp(HNCP)
+    hncp = si.create_dncp(HNCP, if_list=args.ifname)
     if args.debug:
         import logging
         logging.basicConfig(level=logging.DEBUG)
