@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Tue Jul 21 13:07:01 2015 mstenber
-# Last modified: Fri Aug 21 12:21:09 2015 mstenber
-# Edit time:     49 min
+# Last modified: Sat Aug 22 10:54:12 2015 mstenber
+# Edit time:     53 min
 #
 """
 
@@ -34,13 +34,11 @@ if __name__ == '__main__':
     ap.add_argument('-t', '--timeout', default=3, type=int, help='Timeout (seconds)')
     ap.add_argument('-d', '--debug', action='store_true', help='Enable debugging')
     ap.add_argument('ifname',
-                    nargs='+',
+                    nargs='*',
                     help="Interfaces to listen on.")
     args = ap.parse_args()
     si = HNCPSystemInterface()
-    s = si.create_socket()
-    hncp = HNCP(sys=s)
-    s.set_dncp_multicast(hncp, args.ifname)
+    hncp = si.create_dncp(HNCP)
     if args.debug:
         import logging
         logging.basicConfig(level=logging.DEBUG)
