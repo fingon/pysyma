@@ -9,7 +9,7 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Sat Aug 22 12:01:57 2015 mstenber
+# Last modified: Sat Aug 22 12:08:42 2015 mstenber
 # Edit time:     503 min
 #
 """
@@ -68,13 +68,13 @@ class Trickle:
     def set_i(self, i):
         now = self.dncp.sys.time()
         self.i = min(max(self.dncp.TRICKLE_IMIN, i), self.dncp.TRICKLE_IMAX)
+        _debug('%s set_i %s', self, self.i)
         self.send_time = now + self.i * (1 + random.random()) / 2
         self.interval_end_time = now + self.i
         self.c = 0
     def _run(self):
         now = self.dncp.sys.time()
         if now >= self.interval_end_time:
-            _debug('%s doubling Trickle interval', self)
             self.set_i(self.i * 2)
             return self._run()
         ka_time = self.last_sent + self.dncp.KEEPALIVE_INTERVAL
