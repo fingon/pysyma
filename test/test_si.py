@@ -9,7 +9,7 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:46:04 2015 mstenber
-# Last modified: Sat Aug 22 10:26:37 2015 mstenber
+# Last modified: Sat Aug 22 10:38:45 2015 mstenber
 # Edit time:     19 min
 #
 """
@@ -59,6 +59,13 @@ def test_si2():
     h2 = HastyHNCP(sys=s2)
     s1.set_dncp_unicast_connect(h1, ('::1', 12347))
     s2.set_dncp_multicast(h2, [], unicast_ep_name='unicast-listen')
+    _wait_in_sync(si, h2, h1)
+
+def test_si3():
+    si = pysyma.si.HNCPSystemInterface()
+    h1 = si.create_dncp(HastyHNCP)
+    h1.add_tlv(pysyma.dncp_tlv.PadBodyTLV(t=42, body=b'asd'))
+    h2 = si.create_dncp(HastyHNCP)
     _wait_in_sync(si, h2, h1)
 
 

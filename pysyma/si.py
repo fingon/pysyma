@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:00:10 2015 mstenber
-# Last modified: Sat Aug 22 10:26:49 2015 mstenber
-# Edit time:     104 min
+# Last modified: Sat Aug 22 10:51:09 2015 mstenber
+# Edit time:     119 min
 #
 """
 
@@ -66,6 +66,13 @@ import enum
 
 SISocketMode = enum.Enum('SISocketMode', 'none mc ul uc')
 
+def _if_nametoindex(ifn):
+    return socket.getaddrinfo('fe80::1%' + ifn, 0, socket.AF_INET6, 0)[0][4][3]
+
+def _if_exists(ifn):
+    return _if_nametoindex(ifn) > 0
+
+
 class SystemInterfaceSocket(dncp.SystemInterface):
     mode = SISocketMode.none
     ep_name = None
@@ -82,7 +89,7 @@ class SystemInterfaceSocket(dncp.SystemInterface):
             dst = self.default_dst
         assert dst is not None
         ifname = ep.name
-        ifindex = socket.if_nametoindex(ifname)
+        ifindex = _if_nametoindex(ifname)
         b = dncp_tlv.encode_tlvs(*list(tlvs))
         assert len(dst) == 2, 'odd dst: %s' % dst
         dst = list(dst) + [0, ifindex]
@@ -124,7 +131,7 @@ class SystemInterfaceSocket(dncp.SystemInterface):
             self.dncp.ext_received(ep, src, dst, dncp_tlv.decode_tlvs(data))
         else:
             _debug(' no endpoint found, ignoring')
-    def set_dncp_multicast(self, dncp, iflist=[], unicast_ep_name=None):
+    def set_dncp_multicast(self, dncp, if_list=[], unicast_ep_name=None):
         assert self.mode == SystemInterfaceSocket.mode # default
         if unicast_ep_name:
             self.set_dncp_unicast_listen(dncp, ep_name=unicast_ep_name)
@@ -133,12 +140,12 @@ class SystemInterfaceSocket(dncp.SystemInterface):
         self.default_dst = (self.si.proto_group, self.si.proto_port)
         addrinfo = socket.getaddrinfo(self.si.proto_group, None)[0]
         group_bin = socket.inet_pton(addrinfo[0], addrinfo[4][0])
-        for ifname in iflist:
-            ep = dncp.create_ep(ifname)
+        for if_name in if_list:
+            ep = dncp.create_ep(if_name)
             def _send(src, dst, tlvs):
                 self.send_ll(ep, dst, tlvs)
             ep.sys_send = _send
-            ifindex = socket.if_nametoindex(ifname)
+            ifindex = _if_nametoindex(if_name)
             mreq = group_bin + struct.pack('@I', ifindex)
             self.s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
             ep.ext_ready(True)
@@ -164,6 +171,8 @@ class SystemInterfaceSocket(dncp.SystemInterface):
                             per_endpoint_ka=False,
                             per_peer_ka=True)
         ep.ext_ready(True)
+
+
 
 class SystemInterface:
     proto_group = None
@@ -237,6 +246,27 @@ class SystemInterface:
             raise NotImplementedError
         s.setsockopt(socket.IPPROTO_IPV6, IPV6_RECVPKTINFO, True)
         return SystemInterfaceSocket(s=s, si=self, port=port)
+    def create_dncp(self, proto_class, if_list=[]):
+        try:
+            s = self.create_socket()
+            main = True
+        except socket.error:
+            s = self.create_socket(port=0)
+            main = False
+        if main:
+            # Ugly hackery to provide _some_ interface for multicast use
+            if not if_list:
+                for if_name in ['br-lan', 'en0', 'eth0']:
+                    if _if_exists(if_name):
+                        if_list = [if_name]
+                        break
+                assert if_list
+            p = proto_class(sys=s)
+            s.set_dncp_multicast(p, if_list=if_list, unicast_ep_name='listen')
+        else:
+            p = proto_class(sys=s)
+            s.set_dncp_unicast_connect(p, ('::1', self.proto_port))
+        return p
     def set_locked(self, locked):
         pass
 
