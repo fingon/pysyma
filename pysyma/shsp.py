@@ -9,7 +9,7 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:32:17 2015 mstenber
-# Last modified: Sun Aug 23 11:54:18 2015 mstenber
+# Last modified: Sun Aug 23 11:59:39 2015 mstenber
 # Edit time:     97 min
 #
 """
@@ -156,7 +156,7 @@ class SHSP(dncp.HNCP, SHSPSubscriber):
             if v is None:
                 continue
             ts = ts or self.sys.time()
-            ts = int(ts)
+            #ts = int(ts) # why coerce? sub-second accuracy is ok too
             nt = SHSPKV(json=dict(ts=ts, k=k, v=v))
             tlv_container.add_tlv(nt)
             self.local_dict[k] = nt
