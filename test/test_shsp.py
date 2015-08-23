@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:45:29 2015 mstenber
-# Last modified: Fri Aug 21 09:51:01 2015 mstenber
-# Edit time:     14 min
+# Last modified: Sun Aug 23 12:56:37 2015 mstenber
+# Edit time:     15 min
 #
 """
 
@@ -48,6 +48,13 @@ def _test_shsp(key=None):
     d1 = nodes[1].h.get_dict(printable_node=True)
     assert d1 == {}
     assert d0 == d1
+
+
+    # Make sure certain other things work too..
+    nodes[0].h.update_dict(dict(foo=False))
+    nodes[0].h.update_dict(dict(foo=None))
+    nodes[0].h.update_dict(dict(foo='bar'))
+
 
 def test_shsp_noauth():
     _test_shsp()

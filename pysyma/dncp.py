@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Sat Aug 22 12:08:42 2015 mstenber
-# Edit time:     503 min
+# Last modified: Sun Aug 23 12:58:00 2015 mstenber
+# Edit time:     507 min
 #
 """
 
@@ -334,6 +334,7 @@ class DNCP(TLVList):
     def remove_tlv(self, x):
         _debug('%s remove_tlv %s', self, x)
         if isinstance(x, ContainerTLV): del x.parent
+        assert x in self.tlvs, '%s not in %s' % (x, self.tlvs)
         self.tlvs.remove(x)
         self.event('local_tlv_event', x, TLVEvent.remove)
         self.schedule_immediate_dirty(Dirty.local_tlv)

@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:32:17 2015 mstenber
-# Last modified: Sun Aug 23 11:59:39 2015 mstenber
-# Edit time:     97 min
+# Last modified: Sun Aug 23 12:59:23 2015 mstenber
+# Edit time:     99 min
 #
 """
 
@@ -152,6 +152,7 @@ class SHSP(dncp.HNCP, SHSPSubscriber):
                 if ot.json['v'] == v:
                     continue
                 tlv_container.remove_tlv(ot)
+                del self.local_dict[k]
             # 'None' value is magical - it clears keys
             if v is None:
                 continue
