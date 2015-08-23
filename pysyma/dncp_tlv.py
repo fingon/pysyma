@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Sat Jun 13 12:05:01 2015 mstenber
-# Last modified: Fri Aug 14 12:29:54 2015 mstenber
-# Edit time:     71 min
+# Last modified: Sun Aug 23 13:56:45 2015 mstenber
+# Edit time:     72 min
 #
 """
 
@@ -53,6 +53,11 @@ class Blob:
 
 functools.total_ordering(Blob)
 
+try:
+    buffer('foo')
+except:
+    def buffer(x): return x
+
 class CStruct(Blob):
     format = None # subclass responsibility
     keys = [] # subclass responsibility
@@ -79,6 +84,7 @@ class CStruct(Blob):
         fmt = self.get_format()
         return fmt.pack(*[getattr(self, k) for k in self.keys])
     def decode_buffer(self, x, ofs=0):
+        x = buffer(x)
         fmt = self.get_format()
         for k, v in zip(self.keys, fmt.unpack_from(x, ofs)):
             if hasattr(self, k) and getattr(self, k) == v:
