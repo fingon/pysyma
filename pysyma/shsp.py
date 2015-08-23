@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:32:17 2015 mstenber
-# Last modified: Sat Aug 22 11:20:16 2015 mstenber
-# Edit time:     90 min
+# Last modified: Sun Aug 23 11:54:18 2015 mstenber
+# Edit time:     97 min
 #
 """
 
@@ -94,11 +94,14 @@ class SHSP(dncp.HNCP, SHSPSubscriber):
         self.add_subscriber(self)
     def tlv_event(self, n, tlv, event):
         if not isinstance(tlv, SHSPKV) and not isinstance(tlv, SHSPAuth):
+            #_debug(' .. not SHSP tlv')
             return
         self.node_kv_is_dirty(n)
     def node_kv_is_dirty(self, n):
+        dc = len(self.kv_dirty_nodes)
+        _debug('%s node_kv_is_dirty %s [%d]', self, n, dc)
         # This node is potentially dirty. Start the delayed update.
-        if not self.kv_dirty_nodes:
+        if not dc:
             self.sys.schedule(0, self.handle_kv_dirty_nodes)
         self.kv_dirty_nodes.add(n)
     def handle_kv_dirty_nodes(self):
@@ -157,7 +160,7 @@ class SHSP(dncp.HNCP, SHSPSubscriber):
             nt = SHSPKV(json=dict(ts=ts, k=k, v=v))
             tlv_container.add_tlv(nt)
             self.local_dict[k] = nt
-        self.kv_dirty_nodes.add(self.own_node)
+        self.node_kv_is_dirty(self.own_node)
     def set_dict(self, d, ts=None):
         d = d.copy()
         for k in set(self.local_dict.keys()).difference(set(d.keys())):
