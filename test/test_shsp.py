@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:45:29 2015 mstenber
-# Last modified: Sun Aug 23 12:56:37 2015 mstenber
-# Edit time:     15 min
+# Last modified: Sun Aug 23 13:24:06 2015 mstenber
+# Edit time:     18 min
 #
 """
 
@@ -52,6 +52,12 @@ def _test_shsp(key=None):
 
     # Make sure certain other things work too..
     nodes[0].h.update_dict(dict(foo=False))
+    d0 = nodes[0].h.get_dict(printable_node=True)
+    assert d0 != {}
+    s.run_until(s.is_converged, time_ceiling=3)
+    d1 = nodes[1].h.get_dict(printable_node=True)
+    assert d0 == d1
+
     nodes[0].h.update_dict(dict(foo=None))
     nodes[0].h.update_dict(dict(foo='bar'))
 
