@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:00:10 2015 mstenber
-# Last modified: Sat Aug 22 11:39:13 2015 mstenber
-# Edit time:     124 min
+# Last modified: Sun Aug 23 13:58:15 2015 mstenber
+# Edit time:     125 min
 #
 """
 
@@ -90,11 +90,13 @@ class SystemInterfaceSocket(dncp.SystemInterface):
         if dst is None:
             dst = self.default_dst
         assert dst is not None
-        ifname = ep.name
-        ifindex = _if_nametoindex(ifname)
         b = dncp_tlv.encode_tlvs(*list(tlvs))
-        assert len(dst) == 2, 'odd dst: %s' % dst
-        dst = list(dst) + [0, ifindex]
+        if len(dst) == 2:
+            ifname = ep.name
+            ifindex = _if_nametoindex(ifname)
+            dst = list(dst) + [0, ifindex]
+        else:
+            assert len(dst) == 4
         self.s.sendto(b, tuple(dst))
     def send_u(self, src, dst, tlvs):
         if dst is None:
