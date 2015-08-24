@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Sun Aug 23 12:58:00 2015 mstenber
-# Edit time:     507 min
+# Last modified: Mon Aug 24 13:23:09 2015 mstenber
+# Edit time:     510 min
 #
 """
 
@@ -556,8 +556,8 @@ class HNCP(DNCP):
                 if node_id not in self.id2node:
                     break
         self.set_node_id(node_id)
-    def __init__(self, sys, node_id=None):
-        DNCP.__init__(self, sys)
+    def __init__(self, sys, node_id=None, **kw):
+        DNCP.__init__(self, sys, **kw)
         self._set_id(node_id)
     def profile_hash(self, b):
         return hashlib.md5(b).digest()[:self.HASH_LENGTH]
