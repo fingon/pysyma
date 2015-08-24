@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:00:10 2015 mstenber
-# Last modified: Mon Aug 24 11:47:51 2015 mstenber
-# Edit time:     127 min
+# Last modified: Mon Aug 24 20:24:26 2015 mstenber
+# Edit time:     137 min
 #
 """
 
@@ -34,6 +34,8 @@ import struct
 import select
 import ipaddress
 import os
+import threading
+import fcntl
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -182,22 +184,29 @@ class SystemInterface:
     proto_group = None
     proto_port = None
     time = time.time
+    current_thread = None
     def __init__(self):
         self.timeouts = []
         self.readers = {}
         r, w = os.pipe()
-        r = os.fdopen(r, 'r')
+        fl = fcntl.fcntl(r, fcntl.F_GETFL)
+        fcntl.fcntl(r, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+        r = os.fdopen(r, 'r', 1)
         w = os.fdopen(w, 'w')
         self.pipe_r, self.pipe_w = r, w
         def _nop():
-            self.pipe_r.read()
+            self.pipe_r.read(1)
         self.add_reader(self.pipe_r, _nop)
     def add_reader(self, s, cb):
         self.readers[s] = cb
-        self.pipe_w.write('x') # in case in separate thread
+        self.break_loop()
+    def break_loop(self):
+        if self.current_thread is None or self.current_thread is threading.current_thread():
+            return
+        self.pipe_w.write('x')
     def stop(self):
         self.running = False
-        self.pipe_w.write('x') # in case in separate thread
+        self.break_loop()
     def next(self):
         if not self.timeouts: return
         return min([x.t for x in self.timeouts])
@@ -211,7 +220,7 @@ class SystemInterface:
             # Just run them one by one as I CBA to track the cancel
             # dependencies :p
     def loop(self, max_duration=None):
-        self.set_locked(True)
+        self.current_thread = threading.current_thread()
         self.running = True
         to = None
         if max_duration is not None:
@@ -224,19 +233,18 @@ class SystemInterface:
                 to = 0.01
             _debug('select %s %s', self.readers.keys(), to)
             k = list(self.readers.keys())
-            self.set_locked(False)
             (rlist, wlist, xlist) = select.select(k, [], [], to)
-            self.set_locked(True)
             _debug('readable %s', rlist)
             for fd in rlist:
                 self.readers[fd]()
-        self.set_locked(False)
         if to is not None and to in self.timeouts:
             self.timeouts.remove(to)
+        del self.current_thread
+        _debug('%s loop terminating', self)
     def schedule(self, dt, cb, *a):
         o = Timeout(self, dt + self.time(), cb, a)
         self.timeouts.append(o)
-        self.pipe_w.write('x') # in case in separate thread
+        self.break_loop()
         return o
     def create_socket(self, addr='', port=None):
         s = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
