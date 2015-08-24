@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:00:10 2015 mstenber
-# Last modified: Sun Aug 23 13:58:15 2015 mstenber
-# Edit time:     125 min
+# Last modified: Mon Aug 24 11:47:51 2015 mstenber
+# Edit time:     127 min
 #
 """
 
@@ -251,7 +251,7 @@ class SystemInterface:
             raise NotImplementedError
         s.setsockopt(socket.IPPROTO_IPV6, IPV6_RECVPKTINFO, True)
         return SystemInterfaceSocket(s=s, si=self, port=port)
-    def create_dncp(self, proto_class, if_list=[]):
+    def create_dncp(self, proto_class, if_list=[], **kw):
         try:
             s = self.create_socket()
             main = True
@@ -266,7 +266,7 @@ class SystemInterface:
                         if_list = [if_name]
                         break
                 assert if_list
-            p = proto_class(sys=s)
+            p = proto_class(sys=s, **kw)
             s.set_dncp_multicast(p, if_list=if_list, unicast_ep_name='listen')
         else:
             p = proto_class(sys=s)
