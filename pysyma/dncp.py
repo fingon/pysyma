@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Mon Aug 24 13:23:09 2015 mstenber
-# Edit time:     510 min
+# Last modified: Tue Aug 25 11:19:59 2015 mstenber
+# Edit time:     521 min
 #
 """
 
@@ -104,9 +104,11 @@ class Endpoint:
         nid = self.dncp.own_node.node_id
         nid = binascii.b2a_hex(nid)
         return '<Endpoint %s[%d]@/%s>' % (self.name, self.ep_id, nid)
-    def send_net_state(self, src=None, dst=None):
+    def send_net_state(self, src=None, dst=None, req=False):
         l = [NetState(hash=self.dncp.get_network_hash())]
-        if dst:
+        if req:
+            l.append(ReqNetState())
+        elif dst:
             for n in self.dncp.valid_sorted_nodes():
                 l.append(n._get_ns(short=True))
         self.send(src, dst, l)
@@ -257,6 +259,7 @@ class DNCP(TLVList):
     scheduled_run = 0
     last_prune = 0
     last_rns = 0 # last request node state sent
+    last_seen_network_hash = None
     network_consistent = None
     network_hash = None
     read_only = False
@@ -400,7 +403,7 @@ class DNCP(TLVList):
         self._prune_neighbors()
         self._prune()
         self._flush_local()
-        self._calculate_network_hash()
+        self.get_network_hash()
         for ep in self.enabled_eps():
             next = min(filter(None, [next, ep._run()]))
         if self.scheduled_immediate:
@@ -415,7 +418,7 @@ class DNCP(TLVList):
         _debug('_run done - next: %s > %s', next, now)
         self.sys.schedule(next - now, self._run)
         self.scheduled_run = next
-    def _calculate_network_hash(self):
+    def get_network_hash(self):
         if Dirty.network_hash in self.dirty:
             self.dirty.remove(Dirty.network_hash)
             _debug('%s _calculate_network_hash', self)
@@ -435,10 +438,7 @@ class DNCP(TLVList):
                 for ep in self.name2ep.values():
                     for t in ep.get_trickles():
                         t.set_i(0)
-        return self.network_hash
-    def get_network_hash(self):
-        self._calculate_network_hash()
-        assert len(self.network_hash) == self.HASH_LENGTH
+            self.is_consistent() # send update if we match network
         return self.network_hash
     def get_network_hash_hex(self):
         return binascii.b2a_hex(self.get_network_hash())
@@ -483,6 +483,12 @@ class DNCP(TLVList):
                 ftlv.trickle.last_sent = self.sys.time()
             ftlv.trickle = Trickle(dncp=self, send=_send_net_state)
         return self.add_tlv(ftlv)
+    def is_consistent(self):
+        is_consistent = self.last_seen_network_hash == self.get_network_hash()
+        if self.network_consistent is not is_consistent:
+            self.network_consistent = is_consistent
+            self.event('network_consistent_event', is_consistent)
+        return is_consistent
     def ext_received(self, ep, src, dst, l):
         #l = decode_tlvs(body)
         l = list(l)
@@ -508,11 +514,9 @@ class DNCP(TLVList):
                 else:
                     _debug(' ignoring reqnodestate %s, not up to date', t)
             elif isinstance(t, NetState):
-                is_consistent = t.hash == self.get_network_hash()
+                self.last_seen_network_hash = t.hash
+                is_consistent = self.is_consistent()
                 _debug('NetState is %s (%s)', is_consistent, ne)
-                if self.network_consistent is not is_consistent:
-                    self.network_consistent = is_consistent
-                    self.event('network_consistent_event', is_consistent)
                 if is_consistent:
                     if ne:
                         ne.last_contact = now
@@ -527,7 +531,7 @@ class DNCP(TLVList):
             ne.last_contact = now
         if want_rns and (self.last_rns + self.TRICKLE_IMIN) < now:
             self.last_rns = now
-            ep.send(dst, src, [ReqNetState()])
+            ep.send_net_state(src=dst, dst=src, req=True)
 
     def profile_collision(self):
         raise NotImplementedError # child responsibility
