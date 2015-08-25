@@ -14,59 +14,33 @@ Essentially, a collection of independent Python processes.
 
 - that can share the communication channel(/state) with the core process
 
-** Current application goals
+** Current goals
 
-- my home automation system
+- my home automation system ( https://github.com/fingon/kodin-henki )
 
 why? each 'computer', CPE, Raspberry PI runs a particular subset of the
 Python things, and maintaining the software to be up to date and working on
 each is hard work by hand. hopefully this makes it easier
 
+- lightweight hncp debugging tool ( see hncptool.py )
+
 ** Design
 
-- implement DNCP core in Python
++ implement DNCP core in Python
 
-- write a DNCP profile which uses TCP for unicast, and UDP for multicast
-  state sharing (+ simple PSK-based encrypted block abstraction _for both_)
+ + support for read-only mode
 
-.. for the time being, just use HNCP transport though, as I was too lazy
-when writing the shsp draft :p
++ implement HNCP DNCP-profile in Python on top of DNCP core
 
-- provide simple interface for 'client' applications to access pysyma
-  state, and publish their own
+ + additional local client-server using ::1 connections
 
-- have '(sub)node per blob of software' to distribute Python stuff
++ add custom SHSP key=value store and simple psk-based authentication for
+ot
 
 ** TBD
 
-- is DNCP TLV-style encoding desirable, or should we use e.g. JSON/CBOR?
-CBOR brings in extra dependency; json is inefficient and bad for
-transporting binaries; DNCP basic TLV encoding has too small length for our
-purposes.. lose-lose? :p perhaps 1 byte type + 3 byte length would be a
-good compromise.
+- better encoding for SHSP key=value data
 
-*** nested encoding performance
-
-- currently, we do very brute forced handling of nested TLVs. probably
-  better choice would be not to do that..?
-
-** 'Leafy' nodes
-
-*** may choose only to read state (once)
-
-- send request network state to known address, wait for reply + request
-  node datas that are applicable
-
-*** may choose only to publish state (continually)
-
-- 'once' is not really an option; continually you can simply not answer to
-  node data requests from anyone, and mirror someone else's network state
-  (modulo your own data); requires keeping track of ~hash + last seen _per
-  node_, which isn't too bad
-
-*** may choose to publish state (for a while)
-
-- publish state with TTL to first-hop non-leafy node, which then publishes
-  it as their own _without_ TTL. if TTL expires, the data disappears. if
-  TTL gets refreshed, the data stays around
-
+- implement the actual Python process restarts using this; in theory it
+  should not be hard (and can just e.g. provide local HTTPServer instances
+  which serve the content which has URL + MD5 stamp in the SHSP state)
