@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Tue Jul 21 13:07:01 2015 mstenber
-# Last modified: Sat Aug 22 10:54:51 2015 mstenber
-# Edit time:     53 min
+# Last modified: Tue Aug 25 11:22:52 2015 mstenber
+# Edit time:     55 min
 #
 """
 
@@ -29,16 +29,16 @@ _debug = _logger.debug
 if __name__ == '__main__':
     import argparse
     import logging
-    logging.basicConfig(level=logging.DEBUG)
     ap = argparse.ArgumentParser()
     ap.add_argument('-t', '--timeout', default=3, type=int, help='Timeout (seconds)')
+    ap.add_argument('-w', '--write', action='store_true', help='Use write-enabled mode')
     ap.add_argument('-d', '--debug', action='store_true', help='Enable debugging')
     ap.add_argument('ifname',
                     nargs='*',
                     help="Interfaces to listen on.")
     args = ap.parse_args()
     si = HNCPSystemInterface()
-    hncp = si.create_dncp(HNCP, if_list=args.ifname)
+    hncp = si.create_dncp(HNCP, if_list=args.ifname, read_only=not args.write)
     if args.debug:
         import logging
         logging.basicConfig(level=logging.DEBUG)
