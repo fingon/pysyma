@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:00:10 2015 mstenber
-# Last modified: Mon Aug 24 20:24:26 2015 mstenber
-# Edit time:     137 min
+# Last modified: Tue Aug 25 11:20:56 2015 mstenber
+# Edit time:     140 min
 #
 """
 
@@ -266,6 +266,7 @@ class SystemInterface:
         except socket.error:
             s = self.create_socket(port=0)
             main = False
+        p = proto_class(sys=s, **kw)
         if main:
             # Ugly hackery to provide _some_ interface for multicast use
             if not if_list:
@@ -274,10 +275,8 @@ class SystemInterface:
                         if_list = [if_name]
                         break
                 assert if_list
-            p = proto_class(sys=s, **kw)
             s.set_dncp_multicast(p, if_list=if_list, unicast_ep_name='listen')
         else:
-            p = proto_class(sys=s)
             s.set_dncp_unicast_connect(p, ('::1', self.proto_port))
         return p
     def set_locked(self, locked):
