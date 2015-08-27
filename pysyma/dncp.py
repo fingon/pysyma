@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Jun 12 11:18:59 2015 mstenber
-# Last modified: Tue Aug 25 11:19:59 2015 mstenber
-# Edit time:     521 min
+# Last modified: Thu Aug 27 14:45:32 2015 mstenber
+# Edit time:     523 min
 #
 """
 
@@ -103,7 +103,8 @@ class Endpoint:
     def __repr__(self):
         nid = self.dncp.own_node.node_id
         nid = binascii.b2a_hex(nid)
-        return '<Endpoint %s[%d]@/%s>' % (self.name, self.ep_id, nid)
+        return '<%s %s[%d]@/%s>' % (self.__class__.__name__,
+                                    self.name, self.ep_id, nid)
     def send_net_state(self, src=None, dst=None, req=False):
         l = [NetState(hash=self.dncp.get_network_hash())]
         if req:
@@ -155,6 +156,9 @@ class Node(TLVList):
     # dncp supplied by constructor always
     def __init__(self, **kwargs):
         self.__dict__.update(**kwargs)
+    def __repr__(self):
+        nid = binascii.b2a_hex(self.node_id)
+        return '<%s %s[#%d]>' % (self.__class__.__name__, nid, self.seqno)
     def get_node_id_hex(self):
         return binascii.b2a_hex(self.node_id)
     def get_node_hash_hex(self):
