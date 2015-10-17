@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:00:10 2015 mstenber
-# Last modified: Sat Oct 17 14:58:15 2015 mstenber
-# Edit time:     142 min
+# Last modified: Sat Oct 17 14:59:49 2015 mstenber
+# Edit time:     143 min
 #
 """
 
@@ -103,14 +103,17 @@ class SystemInterfaceSocket(dncp.SystemInterface):
         try:
             self.s.sendto(b, tuple(dst))
         except OSError as e:
-            _error('got OSError %s', e)
+            _error('got OSError when sending multicast: %s', e)
     def send_u(self, src, dst, tlvs):
         if dst is None:
             dst = self.default_dst
             if dst is None: return
         assert len(dst) >= 2
         b = dncp_tlv.encode_tlvs(*list(tlvs))
-        self.s.sendto(b, tuple(dst))
+        try:
+            self.s.sendto(b, tuple(dst))
+        except OSError as e:
+            _error('got OSError when sending unicast: %s', e)
     def handle_read(self):
         try:
             data, ancdata, flags, src = self.s.recvmsg(2**16, 2**10)
