@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:00:10 2015 mstenber
-# Last modified: Tue Aug 25 11:20:56 2015 mstenber
-# Edit time:     140 min
+# Last modified: Sat Oct 17 14:58:15 2015 mstenber
+# Edit time:     142 min
 #
 """
 
@@ -40,6 +40,7 @@ import fcntl
 import logging
 _logger = logging.getLogger(__name__)
 _debug = _logger.debug
+_error = _logger.error
 
 class Timeout:
     done = False
@@ -99,7 +100,10 @@ class SystemInterfaceSocket(dncp.SystemInterface):
             dst = list(dst) + [0, ifindex]
         else:
             assert len(dst) == 4
-        self.s.sendto(b, tuple(dst))
+        try:
+            self.s.sendto(b, tuple(dst))
+        except OSError as e:
+            _error('got OSError %s', e)
     def send_u(self, src, dst, tlvs):
         if dst is None:
             dst = self.default_dst
