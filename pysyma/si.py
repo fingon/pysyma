@@ -9,7 +9,7 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:00:10 2015 mstenber
-# Last modified: Wed May  4 06:55:32 2016 mstenber
+# Last modified: Fri Nov  4 17:18:20 2016 mstenber
 # Edit time:     145 min
 #
 """
@@ -165,7 +165,7 @@ class SystemInterfaceSocket(dncp.SystemInterface):
         self.dncp = dncp
         self.default_dst = (self.si.proto_group, self.si.proto_port)
         addrinfo = socket.getaddrinfo(self.si.proto_group, None)[0]
-        group_bin = socket.inet_pton(addrinfo[0], addrinfo[4][0])
+        group_bin = socket.inet_pton(addrinfo[0], self.si.proto_group)
         for if_name in if_list:
             ep = dncp.create_ep(if_name)
 
