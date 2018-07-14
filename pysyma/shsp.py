@@ -9,8 +9,8 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Thu Jul 23 11:32:17 2015 mstenber
-# Last modified: Sun Aug 23 12:59:23 2015 mstenber
-# Edit time:     99 min
+# Last modified: Sat Jul 14 08:23:03 2018 mstenber
+# Edit time:     100 min
 #
 """
 
@@ -21,27 +21,31 @@ last-modified timestamps.
 
 """
 
-from . import dncp
-from pysyma.dncp_tlv import TLV, PadBodyTLV, add_tlvs, ContainerTLV
-
-import json
 import binascii
 import hashlib
-
+import json
 import logging
+
+from pysyma.dncp_tlv import TLV, ContainerTLV, PadBodyTLV, add_tlvs
+
+from . import dncp
+
 _logger = logging.getLogger(__name__)
 _debug = _logger.debug
 _error = _logger.error
 
-JSON_ENCODING='utf-8'
+JSON_ENCODING = 'utf-8'
+
 
 class SHSPKV(PadBodyTLV):
     t = 789
     body = None
+
     def encode(self):
         if self.body is None:
             self.body = json.dumps(self.json).encode(JSON_ENCODING)
         return PadBodyTLV.encode(self)
+
     def decode_buffer(self, x, ofs=0):
         PadBodyTLV.decode_buffer(self, x, ofs)
         try:
@@ -51,28 +55,35 @@ class SHSPKV(PadBodyTLV):
             self.json = None
             self.body = b''
 
+
 class SHSPAuth(ContainerTLV):
     t = 790
     format = TLV.format + '16s'
     keys = TLV.keys[:] + ['hash']
+
     def body_decoded(self):
         h = hashlib.md5(self.key + self.body).digest()
         if h != self.hash:
             _error('SHSPAuth hash mismatch')
             self.body = b''
             self.tlvs = []
+
     def body_encoded(self):
         self.hash = hashlib.md5(self.key + self.body).digest()
 
+
 add_tlvs(SHSPKV, SHSPAuth)
+
 
 class SHSPSubscriber(dncp.Subscriber):
     def dict_update_event(self, n, od, nd):
         pass
 
+
 class SHSP(dncp.HNCP, SHSPSubscriber):
     subscriber_class = SHSPSubscriber
     at = None
+
     def __init__(self, *a, **kw):
         self.kv_dirty_nodes = set()
         key = None
@@ -92,11 +103,13 @@ class SHSP(dncp.HNCP, SHSPSubscriber):
         if key is not None:
             self.at = self.add_tlv(SHSPAuth())
         self.add_subscriber(self)
+
     def tlv_event(self, n, tlv, event):
         if not isinstance(tlv, SHSPKV) and not isinstance(tlv, SHSPAuth):
             #_debug(' .. not SHSP tlv')
             return
         self.node_kv_is_dirty(n)
+
     def node_kv_is_dirty(self, n):
         dc = len(self.kv_dirty_nodes)
         _debug('%s node_kv_is_dirty %s [%d]', self, n, dc)
@@ -104,9 +117,10 @@ class SHSP(dncp.HNCP, SHSPSubscriber):
         if not dc:
             self.sys.schedule(0, self.handle_kv_dirty_nodes)
         self.kv_dirty_nodes.add(n)
+
     def handle_kv_dirty_nodes(self):
-        if not self.kv_dirty_nodes: return
-        nodes = set(self.valid_sorted_nodes())
+        if not self.kv_dirty_nodes:
+            return
         dn = self.kv_dirty_nodes
         _debug('handle_kv_dirty_nodes %s', dn)
         self.kv_dirty_nodes = set()
@@ -122,6 +136,7 @@ class SHSP(dncp.HNCP, SHSPSubscriber):
             _debug(' %s: %s => %s', n, od, nd)
             if nd != od:
                 self.event('dict_update_event', n, od, nd)
+
     def get_node_kv_tlvs(self, n):
         if n is self.own_node:
             self._flush_local()
@@ -132,17 +147,20 @@ class SHSP(dncp.HNCP, SHSPSubscriber):
             for at in n.get_tlv_instances(SHSPAuth):
                 for t in at.get_tlv_instances(SHSPKV):
                     yield t
+
     def get_dict(self, include_timestamp=False, printable_node=False):
         self.handle_kv_dirty_nodes()
         r = {}
         for n in self.valid_sorted_nodes():
             h = getattr(n, 'kv_d', None)
             if h:
-                if printable_node: n = n.get_node_hash_hex()
+                if printable_node:
+                    n = n.get_node_hash_hex()
                 if not include_timestamp:
                     h = dict([(k, v) for (k, (ts, v)) in h.items()])
                 r[n] = h
         return r
+
     def update_dict(self, d, ts=None):
         _debug('%s update_dict %s', self, d)
         tlv_container = self.at or self
@@ -157,14 +175,14 @@ class SHSP(dncp.HNCP, SHSPSubscriber):
             if v is None:
                 continue
             ts = ts or self.sys.time()
-            #ts = int(ts) # why coerce? sub-second accuracy is ok too
+            # ts = int(ts) # why coerce? sub-second accuracy is ok too
             nt = SHSPKV(json=dict(ts=ts, k=k, v=v))
             tlv_container.add_tlv(nt)
             self.local_dict[k] = nt
         self.node_kv_is_dirty(self.own_node)
+
     def set_dict(self, d, ts=None):
         d = d.copy()
         for k in set(self.local_dict.keys()).difference(set(d.keys())):
             d[k] = None
         self.update_dict(d, ts=ts)
-
