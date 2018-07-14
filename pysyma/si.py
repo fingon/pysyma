@@ -9,7 +9,7 @@
 # Copyright (c) 2015 Markus Stenberg
 #
 # Created:       Fri Aug 21 10:00:10 2015 mstenber
-# Last modified: Fri Nov  4 17:18:20 2016 mstenber
+# Last modified: Sat Jul 14 08:25:10 2018 mstenber
 # Edit time:     145 min
 #
 """
@@ -322,5 +322,5 @@ class SystemInterface:
 
 
 class HNCPSystemInterface(SystemInterface):
-    proto_group = 'ff02::8808'
-    proto_port = 8808
+    proto_group = 'ff02::11'
+    proto_port = 8231
